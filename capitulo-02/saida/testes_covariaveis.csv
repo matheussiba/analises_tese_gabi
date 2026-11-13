@@ -1,0 +1,9 @@
+variavel,fator,teste,estatistica,p,n,p_holm,codigo_fazenda,leitura
+agb5_kg,formigas,Wilcoxon,107,0.3612909419049162,27,1,BH,exploratoria
+n_individuos,formigas,Wilcoxon,94.5,0.7669975751425011,27,1,BH,exploratoria
+agb5_kg,cupim,Wilcoxon,75,0.45195757609310844,27,1,BH,exploratoria
+n_individuos,cupim,Wilcoxon,66,0.23412532450739523,27,0.9365012980295809,BH,exploratoria
+agb5_kg,formigas,Wilcoxon,,,28,,ER,exploratoria
+n_individuos,formigas,Wilcoxon,,,28,,ER,exploratoria
+agb5_kg,cupim,Wilcoxon,,,28,,ER,exploratoria
+n_individuos,cupim,Wilcoxon,,,28,,ER,exploratoria

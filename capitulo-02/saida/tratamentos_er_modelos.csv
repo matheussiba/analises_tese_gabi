@@ -1,0 +1,6 @@
+resposta,modelo,estatistica,gl,p,nota,p_holm
+Indivíduos vivos,"Binomial negativa, razão de verossimilhança",2.8570369514795857,6,0.8265644828977396,"Contagem por parcela. Índice de estabelecimento, se a lotação de plantio foi a mesma.",1
+Proporção sadia,"Quase-binomial, teste F",2.2773075394638482,6,0.07525942597982284,Usa o número de indivíduos de cada parcela. A sobredispersão entra no teste.,0.3762971298991142
+Biomassa (kg/parcela),"Linear em log(1 + kg), teste F",0.5504720123828942,6,0.7641258087353964,A escala log reduz o peso das parcelas mais pesadas.,1
+Altura do indivíduo,"Misto, parcela aleatória, razão de verossimilhança",6.916675250033222,6,0.3286218641616573,"Cada árvore entra, mas a parcela é a unidade do tratamento.",1
+"Altura do indivíduo, mesma espécie","Misto, espécie e parcela aleatórias, razão de verossimilhança",5.749140296847145,6,0.4518700967198107,Compara a altura dentro da espécie. Tira o efeito da mistura de espécies.,1
