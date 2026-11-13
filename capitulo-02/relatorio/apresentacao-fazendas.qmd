@@ -1,0 +1,218 @@
+---
+title: "Inventário das fazendas"
+subtitle: "Belo Horizonte e Entre Rios"
+author: "Capítulo 2"
+date: 2026-11-13
+date-format: long
+lang: pt
+format:
+  pptx:
+    slide-level: 2
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| include: false
+user_lib <- Sys.getenv(
+  "R_LIBS_USER",
+  unset = path.expand("~/R/x86_64-pc-linux-gnu-library/4.3")
+)
+.libPaths(c(user_lib, .libPaths()))
+raiz <- normalizePath("..")
+source(file.path(raiz, "R/analise.R"))
+res <- run_analise(raiz)
+bh <- filtrar_fazenda(res, "BH")
+er <- filtrar_fazenda(res, "ER")
+inv_bh <- bh$resumo %>% dplyr::filter(tem_inventario)
+inv_er <- er$resumo %>% dplyr::filter(tem_inventario)
+lider <- function(tab) tab %>% dplyr::arrange(dplyr::desc(agb5_kg)) %>% dplyr::slice(1)
+sig <- function(tab) {
+  nomes <- tab$variavel_nome[is.finite(tab$p_holm) & tab$p_holm < 0.05]
+  if (length(nomes) == 0) "nenhuma variável passa de Holm" else paste(nomes, collapse = "; ")
+}
+at <- res$tratamentos_er
+rob <- function(v, campo) at$robustez[[campo]][at$robustez$variavel == v]
+
+# Estilo da apresentação anterior: barras por parcela, cor por talhão (BH)
+# ou por tratamento (ER), na ordem das parcelas.
+grafico_biomassa_fazenda <- function(res) {
+  d <- res$resumo %>%
+    dplyr::filter(tem_inventario) %>%
+    dplyr::mutate(rotulo = paste0(tratamento, "\nP", parcela))
+  g <- paleta_grupo(d)
+  d <- g$d
+  subtitulo <- if (g$um_talhao) {
+    "Soma dos fustes com DAP ≥ 5 cm. A cor é o tratamento."
+  } else {
+    "Soma dos fustes com DAP ≥ 5 cm. Nesta fazenda cada tratamento é uma parcela."
+  }
+  p <- ggplot2::ggplot(d, ggplot2::aes(stats::reorder(rotulo, parcela), agb5_kg, fill = grupo)) +
+    ggplot2::geom_col(width = 0.78)
+  if (all(c("agb5_kg_wd_inf", "agb5_kg_wd_sup") %in% names(d))) {
+    p <- p + ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = agb5_kg_wd_inf, ymax = agb5_kg_wd_sup),
+      width = 0.25, linewidth = 0.3, color = "#222222"
+    )
+  }
+  p +
+    ggplot2::scale_fill_manual(values = g$pal, name = g$legenda) +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_number(decimal.mark = ",", big.mark = "."),
+      expand = ggplot2::expansion(mult = c(0, 0.05))
+    ) +
+    ggplot2::labs(
+      title = "Biomassa aérea por parcela",
+      subtitle = subtitulo,
+      x = "Tratamento / parcela",
+      y = "Biomassa aérea (kg)"
+    ) +
+    tema_relatorio() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(size = 7))
+}
+```
+
+## Duas fazendas, o mesmo experimento
+
+- Belo Horizonte: `r sum(bh$resumo$tem_inventario)` parcelas com fustes, campanha de `r format(min(bh$resumo$data_coleta), "%d/%m/%Y")` a `r format(max(bh$resumo$data_coleta), "%d/%m/%Y")`. Cada tratamento é uma parcela. O fator com repetição é o talhão.
+- Entre Rios: `r sum(er$resumo$tem_inventario)` parcelas, de `r format(min(er$resumo$data_coleta), "%d/%m/%Y")` a `r format(max(er$resumo$data_coleta), "%d/%m/%Y")`. Tratamentos T1 a T7, quatro parcelas cada.
+- Não há árvore morta nem o total plantado. O que se mostra é o estoque vivo, não a taxa de sobrevivência.
+
+## Como a biomassa foi calculada
+
+$$AGB = 0.0673 \times (\mathrm{WD} \times H \times D^{2})^{0.976}$$
+
+- Equação 4 de Chave et al. (2014), só nos fustes com DAP ≥ 5 cm.
+- Densidade da madeira: espécie, depois gênero, depois a média do próprio sítio.
+- Carbono = 0,47 × biomassa. Fração default do IPCC, não medida em laboratório.
+- Mg/ha só entra quando o polígono do GPS é aceitável (400 a 1.600 m², lado máximo 80 m, lado mínimo 8 m).
+
+## Belo Horizonte no mapa
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.6
+grafico_mapa(bh, "Belo Horizonte")
+```
+
+## Biomassa em Belo Horizonte
+
+`r fmt_num(sum(inv_bh$agb5_kg) / 1000, 2)` Mg nos fustes com DAP ≥ 5 cm. Mediana de `r fmt_num(median(inv_bh$agb5_kg), 0)` kg por parcela e `r fmt_num(median(inv_bh$agb5_mg_ha, na.rm = TRUE), 1)` Mg/ha onde o GPS serve.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.2
+grafico_biomassa_fazenda(bh)
+```
+
+## Quem carrega o estoque em Belo Horizonte
+
+*`r lider(bh$especies)$especie_nome`* tem `r fmt_num(100 * lider(bh$especies)$pct_agb5, 1)`% da biomassa acima de 5 cm. A mais abundante é *`r bh$especies$especie_nome[1]`* (`r fmt_num(100 * bh$especies$pct_n[1], 1)`% dos indivíduos). Sadios: `r fmt_num(100 * mean(bh$individuos$fito == "sadio", na.rm = TRUE), 1)`%.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.2
+grafico_especies(bh)
+```
+
+## Talhões em Belo Horizonte
+
+Kruskal–Wallis nos talhões 558, 559 e 560, sete testes, correção de Holm: `r sig(res$kw)`.
+
+PERMANOVA de Hellinger só com retângulo exclusivo: R² = `r fmt_num(100 * res$permanova$r2, 1)`%, p = `r fmt_p(res$permanova$p)`.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 3.6
+grafico_talhoes(bh)
+```
+
+## Entre Rios no mapa
+
+Quinze parcelas com geometria aceita. As outras têm o anel do GPS colapsado: a biomassa em kg fica, o Mg/ha fica em branco.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.6
+grafico_mapa(er, "Entre Rios")
+```
+
+## Biomassa em Entre Rios
+
+Total com regeneração: `r fmt_num(sum(inv_er$agb5_kg) / 1000, 2)` Mg. Plantio: `r fmt_num(sum(inv_er$agb5_plantio_kg) / 1000, 2)` Mg. A regeneração marcada soma `r fmt_num(sum(inv_er$agb5_regen_kg), 0)` kg. Mediana de `r fmt_num(median(inv_er$agb5_kg), 0)` kg por parcela. A variação entre as quatro parcelas de um mesmo tratamento é tão grande quanto a variação entre tratamentos: T4 vai de `r fmt_num(min(at$parcelas$agb_plantio_kg[at$parcelas$tratamento == "T4"]), 0)` a `r fmt_num(max(at$parcelas$agb_plantio_kg[at$parcelas$tratamento == "T4"]), 0)` kg.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.2
+grafico_biomassa_fazenda(er)
+```
+
+## Quem carrega o estoque em Entre Rios
+
+*`r lider(er$especies)$especie_nome`* tem `r fmt_num(100 * lider(er$especies)$pct_agb5, 1)`% da biomassa acima de 5 cm. A mais abundante é *`r er$especies$especie_nome[1]`*. Regeneração marcada na ficha: `r fmt_num(100 * mean(er$individuos$regeneracao, na.rm = TRUE), 1)`% dos indivíduos. Sadios: `r fmt_num(100 * mean(er$individuos$fito == "sadio", na.rm = TRUE), 1)`%.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.2
+grafico_especies(er)
+```
+
+## Tratamentos T1 a T7
+
+Quatro parcelas por tratamento. Kruskal–Wallis com Holm: `r sig(res$kw_trat)`.
+
+PERMANOVA de Hellinger entre tratamentos: R² = `r fmt_num(100 * res$permanova_tratamento$r2, 1)`%, p = `r fmt_p(res$permanova_tratamento$p)`.
+
+```{r}
+#| fig-width: 9.2
+#| fig-height: 3.6
+grafico_tratamentos(er)
+```
+
+## Posição de cada tratamento
+
+T4 tem a maior mediana em `r at$posicao_media$n_primeiro[at$posicao_media$tratamento == "T4"]` das sete variáveis do plantio: biomassa, altura, área basal e proporção com DAP ≥ 5 cm. T1 e T7 têm mais indivíduos vivos; T1, T2 e T7 empatam na riqueza. T6 e T7 têm a maior proporção de sadios.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.2
+grafico_ranking_tratamentos(at)
+```
+
+## Quem fica em primeiro, e com que firmeza
+
+Em altura e na proporção com DAP ≥ 5 cm, T4 continua em primeiro mesmo sem a melhor parcela; é o sinal mais estável. Na biomassa, sem a parcela `r rob("agb_plantio_kg", "parcela_retirada")`, T4 cai para a posição `r rob("agb_plantio_kg", "posicao_sem_melhor_parcela")`. Em vivos, riqueza e sanidade, o primeiro lugar troca conforme a parcela retirada.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 3.6
+grafico_prob_melhor(at)
+```
+
+## As duas fazendas
+
+Wilcoxon nas parcelas inventariadas. Diferença aqui mistura idade, solo, flora e os cerca de 1.500 km entre os sítios. Não é efeito de T1–T7.
+
+PERMANOVA entre fazendas: R² = `r fmt_num(100 * res$permanova_fazenda$r2, 1)`%, p = `r fmt_p(res$permanova_fazenda$p)`.
+
+```{r}
+#| fig-width: 9.2
+#| fig-height: 3.6
+grafico_fazendas(res)
+```
+
+## O que estes números não são
+
+- Não são taxa de sobrevivência. A cova vazia não foi lançada.
+- Não são um teste de tratamento em Belo Horizonte: lá cada código ocorre uma vez.
+- O Mg/ha da parcela 5 de Belo Horizonte e de várias parcelas de Entre Rios não entra, porque o GPS não fecha um retângulo.
+- O carbono usa 0,47. Trocar a fração troca o carbono na mesma proporção e não muda o teste.
+
+## Onde estão os arquivos
+
+- `saida/parcelas_BH.gpkg` e `saida/parcelas_ER.gpkg`: camadas `pontos` e `parcelas`.
+- `saida/resumo_parcelas.csv`: uma linha por parcela, com biomassa, riqueza e a espécie predominante.
+- `relatorio/inventario-maxic-bh.pdf`: o relatório com as tabelas.
+- `relatorio/apresentacao-fazendas.pptx`: estes slides.
