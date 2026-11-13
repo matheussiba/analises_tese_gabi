@@ -1,0 +1,7 @@
+teste,r2,p,n,n_excluidas,leitura
+talhao_BH_retangulo_exclusivo,0.16449146332791562,0.11,16,10,principal
+talhao_BH_retangulos_repetidos,0.12630479617633678,0.005,26,0,sensibilidade: trata retângulos repetidos como independentes
+tratamento_ER,0.23965703060013432,0.206,28,0,"principal, todos os indivíduos"
+tratamento_ER_plantio,0.23768958671663387,0.243,28,0,só o plantio
+fazenda_retangulo_exclusivo,0.23572842722521709,0.001,45,10,principal
+fazenda_todas_as_parcelas,0.2375642590079708,0.001,55,0,sensibilidade: trata retângulos repetidos como independentes

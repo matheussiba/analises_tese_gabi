@@ -1,0 +1,7 @@
+codigo_fazenda,agb5_kg,agb5_plantio_kg,fracao,papel,referencia,carbono_kg,carbono_plantio_kg
+BH,20826.590726087656,,0.47,principal,"IPCC (2006), valor default da biomassa aérea",9788.497641261198,
+BH,20826.590726087656,,0.44,sensibilidade,"IPCC (2006), Tabela 4.3, limite inferior, tropical e subtropical, todas as partes",9163.69991947857,
+BH,20826.590726087656,,0.49,sensibilidade,"IPCC (2006), Tabela 4.3, limite superior, tropical e subtropical, todas as partes",10205.029455782951,
+ER,4526.229645851138,4495.784254405681,0.47,principal,"IPCC (2006), valor default da biomassa aérea",2127.3279335500347,2113.01859957067
+ER,4526.229645851138,4495.784254405681,0.44,sensibilidade,"IPCC (2006), Tabela 4.3, limite inferior, tropical e subtropical, todas as partes",1991.541044174501,1978.1450719384998
+ER,4526.229645851138,4495.784254405681,0.49,sensibilidade,"IPCC (2006), Tabela 4.3, limite superior, tropical e subtropical, todas as partes",2217.8525264670575,2202.934284658784

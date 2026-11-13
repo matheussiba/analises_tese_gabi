@@ -1,0 +1,11 @@
+x,y,rho,p,n,p_holm,codigo_fazenda,leitura
+perc_folha_larga,agb5_kg,-0.32315809402271817,0.10013920988910513,27,0.3004176296673154,BH,exploratoria
+perc_folha_larga,n_individuos,-0.05986771283477128,0.7667506414957657,27,1,BH,exploratoria
+perc_folha_estreita,agb5_kg,-0.4406878648270159,0.021408241894300982,27,0.08563296757720393,BH,exploratoria
+perc_folha_estreita,n_individuos,-0.6492861438498634,2.479554679026081e-4,27,0.0012397773395130406,BH,exploratoria
+n_cupinzeiros,agb5_kg,-0.11213103453610114,0.6378797707969126,20,1,BH,exploratoria
+perc_folha_larga,agb5_kg,0.1341695478686048,0.49607547858518963,28,1,ER,exploratoria
+perc_folha_larga,n_individuos,0.07226492080204772,0.7147871753475603,28,1,ER,exploratoria
+perc_folha_estreita,agb5_kg,-0.1341695478686048,0.49607547858518997,28,1,ER,exploratoria
+perc_folha_estreita,n_individuos,-0.07226492080204772,0.7147871753475608,28,1,ER,exploratoria
+n_cupinzeiros,agb5_kg,0.015907345481063748,0.9359660738433047,28,1,ER,exploratoria

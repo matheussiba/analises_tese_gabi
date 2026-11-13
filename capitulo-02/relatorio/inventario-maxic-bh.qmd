@@ -1,0 +1,602 @@
+---
+title: "Inventário MaxiC"
+subtitle: "Belo Horizonte e Entre Rios: biomassa, composição e testes"
+author: "Capítulo 2"
+date: 2026-11-13
+date-format: long
+lang: pt
+format:
+  typst:
+    papersize: a4
+    toc: true
+    number-sections: true
+    mainfont: "DejaVu Sans"
+    fontsize: 10.5pt
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| include: false
+user_lib <- Sys.getenv(
+  "R_LIBS_USER",
+  unset = path.expand("~/R/x86_64-pc-linux-gnu-library/4.3")
+)
+.libPaths(c(user_lib, .libPaths()))
+raiz <- normalizePath("..")
+source(file.path(raiz, "R/analise.R"))
+res <- run_analise(raiz)
+bh <- filtrar_fazenda(res, "BH")
+er <- filtrar_fazenda(res, "ER")
+inv_bh <- bh$resumo %>% dplyr::filter(tem_inventario) %>% dplyr::arrange(talhao, parcela)
+inv_er <- er$resumo %>% dplyr::filter(tem_inventario) %>% dplyr::arrange(parcela)
+
+tabela_estrutura <- function(tab) {
+  tab %>%
+    dplyr::arrange(talhao, parcela) %>%
+    dplyr::transmute(
+      Parcela = parcela,
+      Trat. = tratamento,
+      Talhão = talhao,
+      `Área (m²)` = fmt_num(area_m2, 0),
+      Indivíduos = fmt_num(n_individuos, 0),
+      Riqueza = fmt_num(riqueza, 0),
+      `AGB (kg)` = fmt_num(agb5_kg, 0),
+      `Mg/ha` = fmt_num(agb5_mg_ha, 1),
+      `Sadios (%)` = fmt_num(100 * prop_sadio, 0)
+    )
+}
+tabela_kw <- function(tab) {
+  tab %>%
+    dplyr::transmute(
+      Variável = variavel_nome,
+      H = fmt_num(estatistica, 2),
+      gl = gl,
+      p = fmt_p(p),
+      `p Holm` = fmt_p(p_holm),
+      `Épsilon²` = fmt_num(efeito, 2)
+    )
+}
+tabela_especies <- function(tab) {
+  tab %>%
+    dplyr::slice_head(n = 12) %>%
+    dplyr::transmute(
+      Espécie = especie_nome,
+      Indivíduos = n,
+      `%` = fmt_num(100 * pct_n, 1),
+      `AGB (kg)` = fmt_num(agb5_kg, 0),
+      `% da AGB` = fmt_num(100 * pct_agb5, 1),
+      WD = fmt_num(wd, 2)
+    )
+}
+lider_agb <- function(tab) tab %>% dplyr::arrange(dplyr::desc(agb5_kg)) %>% dplyr::slice(1)
+spear <- function(faz, xx, yy, campo) {
+  res$spears %>%
+    dplyr::filter(codigo_fazenda == faz, .data$x == xx, .data$y == yy) %>%
+    dplyr::pull(campo)
+}
+fmt_data <- function(x) format(x, "%d/%m/%Y")
+at <- res$tratamentos_er
+rob <- function(v, campo) at$robustez[[campo]][at$robustez$variavel == v]
+mod_p <- function(r) at$modelos$tabela$p[at$modelos$tabela$resposta == r]
+mde <- function(v, campo) at$mde[[campo]][at$mde$variavel == v]
+```
+
+# O que este relatório mede
+
+O experimento MaxiC planta mudas para restauração e sequestro de carbono em duas fazendas. Belo Horizonte foi inventariada de `r fmt_data(min(bh$resumo$data_coleta, na.rm = TRUE))` a `r fmt_data(max(bh$resumo$data_coleta, na.rm = TRUE))`: `r nrow(bh$resumo)` parcelas qualitativas e `r sum(bh$resumo$tem_inventario)` com fustes. Entre Rios foi inventariada de `r fmt_data(min(er$resumo$data_coleta, na.rm = TRUE))` a `r fmt_data(max(er$resumo$data_coleta, na.rm = TRUE))`: `r nrow(er$resumo)` parcelas, todas com inventário.
+
+Em Belo Horizonte cada código de tratamento do croqui (T1, T2, …) é uma parcela só. T16 e a parcela 16 não estão na planilha. Não há resíduo para um teste de tratamento. O fator com repetição é o talhão. Em Entre Rios os tratamentos T1 a T7 se repetem, cada um em quatro parcelas do talhão 25. Esse é o teste de tratamento do experimento.
+
+As duas fazendas ficam a cerca de 1.500 km uma da outra, em regiões e floras diferentes. As comparações entre fazendas descrevem os dois plantios. Não são um efeito de tratamento.
+
+# Dados e geometria
+
+A aba `planilha_qualitativa` traz os quatro vértices de cada parcela, o talhão, o tratamento e as anotações de solo, formiga, cupim e cobertura. A aba `planilha_MaxiC` traz um registro por fuste. No conjunto são `r format(nrow(res$fustes), big.mark = ".", decimal.mark = ",")` fustes e `r format(nrow(res$individuos), big.mark = ".", decimal.mark = ",")` indivíduos.
+
+Os vértices foram lidos como latitude e longitude em WGS 84. O polígono usa a ordem angular em torno do centroide. A área é calculada em SIRGAS 2000 / UTM, na zona do próprio sítio: 24S em Belo Horizonte e 23S em Entre Rios. A geometria foi aceita quando a área ficou entre 400 e 1.600 m², o maior lado não passou de 80 m e o menor lado ficou com pelo menos 8 m. Fora disso, a área por hectare fica em branco. A biomassa em quilogramas por parcela permanece.
+
+```{r}
+#| label: fig-mapa-bh
+#| fig-cap: "Belo Horizonte, parcelas com geometria aceita. O contorno laranja marca um retângulo registrado em mais de uma parcela. A parcela 5 ficou de fora: o vértice P2 está longe dos outros três."
+#| fig-width: 7.2
+#| fig-height: 5.4
+grafico_mapa(bh, "Belo Horizonte")
+```
+
+```{r}
+#| label: fig-mapa-er
+#| fig-cap: "Entre Rios, parcelas com geometria aceita. Nove anéis colapsados e quatro anéis abaixo do critério de área não entram no mapa nem no Mg/ha."
+#| fig-width: 7.2
+#| fig-height: 5.4
+grafico_mapa(er, "Entre Rios")
+```
+
+```{r}
+#| label: tbl-qc
+#| tbl-cap: "Pendências de campo do GPS. Nenhuma coordenada foi inventada."
+qc <- res$pendencias %>%
+  dplyr::transmute(
+    Fazenda = codigo_fazenda,
+    Parcela = parcela,
+    Talhão = talhao,
+    Tipo = dplyr::recode(
+      tipo,
+      retangulo_compartilhado = "retângulo compartilhado",
+      anel_colapsado = "anel colapsado",
+      anel_rejeitado = "anel rejeitado",
+      vertice_discrepante = "vértice discrepante"
+    ),
+    `Área (m²)` = fmt_num(area_m2, 0),
+    `Lado mín. (m)` = fmt_num(lado_min_m, 1)
+  )
+knitr::kable(qc)
+```
+
+Em Belo Horizonte, dez parcelas ocupam três retângulos, e esses retângulos cruzam os talhões 558 e 559. São os grupos {1, 18}, {2, 4, 17, 19, 21} e {3, 20, 22}. A área entra no Mg/ha. No mapa, cada retângulo aparece uma vez, com contorno laranja. A parcela 5 tem o vértice P2 afastado dos outros três: a área calculada passa de 2 ha e o lado maior passa de 1 km. A parcela 26 tem ficha qualitativa e não tem inventário de fustes.
+
+Em Entre Rios, nove anéis estão colapsados, com lado mínimo abaixo de 8 m, e quatro ficam fora do critério de área mesmo com o anel aberto. A biomassa em quilogramas permanece. O Mg/ha fica em branco.
+
+Quinze indivíduos de Belo Horizonte têm mais de um nome de espécie entre os fustes. A ficha registra a espécie na linha do fuste e não define um nome único para o indivíduo. Nove têm maioria estrita, e a contagem do indivíduo usa esse nome. Seis empatam. O protocolo não desempata: a contagem desses seis manteve o primeiro nome escrito na ficha, para a riqueza já fechada continuar comparável, e os dois nomes ficam em `conflitos_especie.csv`. A biomassa de cada fuste fica no nome da linha. Esse critério desloca `r fmt_num(res$kg_fora_da_moda, 0)` kg entre espécies e não muda o total da parcela. *Joannesia princeps* não entra nesse deslocamento.
+
+# Como a biomassa foi calculada
+
+A biomassa aérea de cada fuste segue a equação 4 de Chave et al. (2014), no pacote BIOMASS:
+
+$$AGB = 0.0673 \times (\mathrm{WD} \times H \times D^{2})^{0.976}$$
+
+$D$ é o DAP em centímetros, $H$ é a altura do indivíduo em metros e $\mathrm{WD}$ é a densidade da madeira em g/cm³. O resultado de `computeAGB` vem em megagramas e foi convertido para quilogramas. A altura é uma medida por indivíduo. A densidade vem da base de Zanne et al. incorporada ao BIOMASS, região tropical da América do Sul: primeiro a espécie, depois o gênero e, se o gênero não existe na base, a média das espécies identificadas neste inventário.
+
+```{r}
+#| label: tbl-wd
+#| tbl-cap: "Nível em que a densidade da madeira foi encontrada, nas duas fazendas juntas."
+wd_tab <- res$wd %>%
+  dplyr::mutate(Nível = dplyr::case_when(
+    wd_nivel == "species" ~ "Espécie",
+    wd_nivel == "genus" ~ "Gênero",
+    TRUE ~ "Média do inventário da fazenda"
+  )) %>%
+  dplyr::count(codigo_fazenda, Nível, name = "Espécies") %>%
+  dplyr::rename(Fazenda = codigo_fazenda)
+knitr::kable(wd_tab)
+```
+
+A biomassa da parcela é a soma dos fustes com DAP de pelo menos 5 cm. Abaixo disso a equação está fora do domínio em que foi ajustada. A soma a partir de 1 cm entra como sensibilidade. Em Belo Horizonte ela acrescenta `r fmt_num(100 * (sum(inv_bh$agb1_kg) / sum(inv_bh$agb5_kg) - 1), 1)`% à biomassa. Em Entre Rios, `r fmt_num(100 * (sum(inv_er$agb1_kg) / sum(inv_er$agb5_kg) - 1), 1)`%. O diâmetro equivalente do indivíduo, somado nas duas fazendas, daria `r fmt_num(res$comparacao_deq$agb5_deq_kg / 1000, 2)` Mg contra `r fmt_num(res$comparacao_deq$agb5_fuste_kg / 1000, 2)` Mg da soma dos fustes, porque fustes menores que 5 cm passam a contar quando o diâmetro combinado cruza o limiar. O número usado daqui em diante é a soma dos fustes com DAP ≥ 5 cm.
+
+O `wd_sd` é o desvio típico da densidade dentro do táxon, a mesma grandeza que o BIOMASS propaga em `AGBmonteCarlo`. O intervalo da parcela usa mil sorteios de uma normal truncada entre 0,08 e 1,39 g/cm³, com semente 260319, um sorteio por fuste. O ponto permanece a equação calculada na densidade média. Em Belo Horizonte, o intervalo de 95% do estoque vai de `r fmt_num(res$incerteza_fazenda$agb5_kg_wd_inf[res$incerteza_fazenda$codigo_fazenda == "BH"] / 1000, 2)` a `r fmt_num(res$incerteza_fazenda$agb5_kg_wd_sup[res$incerteza_fazenda$codigo_fazenda == "BH"] / 1000, 2)` Mg. Em Entre Rios, de `r fmt_num(res$incerteza_fazenda$agb5_kg_wd_inf[res$incerteza_fazenda$codigo_fazenda == "ER"] / 1000, 2)` a `r fmt_num(res$incerteza_fazenda$agb5_kg_wd_sup[res$incerteza_fazenda$codigo_fazenda == "ER"] / 1000, 2)` Mg. Esse intervalo não inclui o resíduo da equação de Chave nem o erro de medição de diâmetro e altura. O traço nos gráficos de biomassa é esse intervalo.
+
+O carbono da parte aérea é a biomassa multiplicada por 0,47, a fração default do IPCC (2006). Não é teor medido em laboratório. A Tabela 4.3 do mesmo guia dá, para floresta tropical e subtropical e para todas as partes da árvore, o intervalo 0,44 a 0,49. Esses extremos entram só como sensibilidade.
+
+```{r}
+#| label: tbl-carbono
+#| tbl-cap: "Carbono da biomassa com DAP ≥ 5 cm. A linha principal usa 0,47. As outras duas são a Tabela 4.3 do IPCC (2006) e não substituem a principal."
+carbono_tab <- res$carbono_sens %>%
+  dplyr::transmute(
+    Fazenda = codigo_fazenda,
+    Fração = fmt_num(fracao, 2),
+    Papel = papel,
+    `Carbono (Mg)` = fmt_num(carbono_kg / 1000, 2)
+  )
+knitr::kable(carbono_tab)
+```
+
+Não há coluna de árvore morta nem o total de mudas plantadas. Os identificadores dos indivíduos são sequenciais, quase sem lacunas, então as covas vazias não ficaram registradas. A taxa de sobrevivência, vivos dividido pelo plantado, não pode ser calculada com estas planilhas. O que se reporta é o número de indivíduos vivos, a densidade quando a área do GPS é aceitável, e a proporção em cada classe fitossanitária. Se o plantio teve a mesma lotação em todas as parcelas, a diferença de indivíduos vivos é um índice de estabelecimento, não uma taxa.
+
+Os testes dentro de cada fazenda são de Kruskal–Wallis. Em Belo Horizonte, entre os talhões com pelo menos duas parcelas (558, 559 e 560). O talhão 561 tem uma parcela e entra só na descrição. Em Entre Rios, entre os tratamentos T1 a T7. São sete variáveis, e os sete valores de *p* de cada família foram ajustados por Holm. Onde o teste global teve *p* bruto abaixo de 0,05, os pares foram comparados por Wilcoxon com correção de Holm dentro da variável. A comparação entre fazendas é um Wilcoxon, também com Holm na família. A composição foi testada por PERMANOVA com distância de Hellinger e 999 permutações. Em Belo Horizonte, a PERMANOVA principal deixa de fora as parcelas que compartilham retângulo: esses pontos cruzam talhões e não são locais independentes. A conta que os trata como independentes fica guardada como sensibilidade. Em Entre Rios, com quatro parcelas por tratamento, o relatório traz o épsilon-quadrado e um poder aproximado de ANOVA com o mesmo n. Não rejeitar depois de Holm não significa que os tratamentos são iguais. As associações com formiga, cupim e cobertura de folha são exploratórias, calculadas dentro de cada fazenda, e não entram como causa da biomassa.
+
+# Belo Horizonte
+
+Nas `r nrow(inv_bh)` parcelas inventariadas há `r fmt_num(sum(inv_bh$agb5_kg) / 1000, 2)` Mg de biomassa aérea nos fustes com DAP ≥ 5 cm, cerca de `r fmt_num(sum(inv_bh$carbono5_kg) / 1000, 2)` Mg de carbono com a fração 0,47. A mediana por parcela é `r fmt_num(median(inv_bh$agb5_kg), 0)` kg. Onde a geometria foi aceita, a mediana é `r fmt_num(median(inv_bh$agb5_mg_ha, na.rm = TRUE), 1)` Mg/ha.
+
+```{r}
+#| label: fig-biomassa-bh
+#| fig-cap: "Belo Horizonte. Biomassa aérea por tratamento, em ordem de T1 a T29. Cada tratamento é uma parcela, sem repetição."
+#| fig-width: 7.4
+#| fig-height: 4.4
+grafico_biomassa(bh)
+```
+
+```{r}
+#| label: tbl-biomassa-bh
+#| tbl-cap: "Belo Horizonte. Biomassa e estrutura por parcela. Mg/ha fica em branco quando a geometria foi rejeitada."
+knitr::kable(tabela_estrutura(bh$resumo))
+```
+
+A parcela mais pesada é a `r inv_bh$parcela[which.max(inv_bh$agb5_kg)]` (`r inv_bh$tratamento[which.max(inv_bh$agb5_kg)]`, talhão `r inv_bh$talhao[which.max(inv_bh$agb5_kg)]`), com `r fmt_num(max(inv_bh$agb5_kg), 0)` kg. A mais leve é a `r inv_bh$parcela[which.min(inv_bh$agb5_kg)]` (`r inv_bh$tratamento[which.min(inv_bh$agb5_kg)]`), com `r fmt_num(min(inv_bh$agb5_kg), 0)` kg. A diferença entre tratamentos descreve o plantio. Não estima um efeito de tratamento com repetição.
+
+Há `r format(sum(inv_bh$n_individuos), big.mark = ".", decimal.mark = ",")` indivíduos vivos e `r format(sum(inv_bh$n_mudas), big.mark = ".", decimal.mark = ",")` mudas, no sentido do protocolo: indivíduo sem fuste de DAP ≥ 1 cm. A proporção de indivíduos sadios é `r fmt_num(100 * mean(bh$individuos$fito == "sadio", na.rm = TRUE), 1)`%. Deterioração inicial: `r fmt_num(100 * mean(bh$individuos$fito == "inicial", na.rm = TRUE), 1)`%. Avançada: `r fmt_num(100 * mean(bh$individuos$fito == "avancado", na.rm = TRUE), 1)`%.
+
+```{r}
+#| label: fig-vivos-bh
+#| fig-cap: "Belo Horizonte. Indivíduos vivos por parcela. Sem o número de mudas plantadas, esta barra não é taxa de sobrevivência."
+#| fig-width: 7.4
+#| fig-height: 4.2
+grafico_individuos(bh)
+```
+
+```{r}
+#| label: fig-sanidade-bh
+#| fig-cap: "Belo Horizonte. Estado fitossanitário dos indivíduos registrados."
+#| fig-width: 7.4
+#| fig-height: 4.4
+grafico_sanidade(bh)
+```
+
+```{r}
+#| label: fig-estrutura-bh
+#| fig-cap: "Belo Horizonte. Altura e diâmetro equivalente dos indivíduos com DAP de pelo menos 1 cm. A linha marca 5 cm."
+#| fig-width: 6.4
+#| fig-height: 4.2
+grafico_estrutura(bh)
+```
+
+O inventário tem `r dplyr::n_distinct(bh$individuos$especie)` nomes. *`r lider_agb(bh$especies)$especie_nome`* concentra `r fmt_num(100 * lider_agb(bh$especies)$pct_agb5, 1)`% da biomassa acima de 5 cm. A espécie mais abundante é *`r bh$especies$especie_nome[1]`*, com `r fmt_num(100 * bh$especies$pct_n[1], 1)`% dos indivíduos.
+
+```{r}
+#| label: fig-especies-bh
+#| fig-cap: "Belo Horizonte. As doze espécies mais abundantes, em indivíduos e em biomassa dos fustes com DAP ≥ 5 cm."
+#| fig-width: 7.4
+#| fig-height: 5.2
+grafico_especies(bh)
+```
+
+```{r}
+#| label: tbl-especies-bh
+#| tbl-cap: "Belo Horizonte. Doze espécies mais abundantes. A densidade da madeira é a usada na equação, em g/cm³."
+knitr::kable(tabela_especies(bh$especies))
+```
+
+```{r}
+#| label: fig-composicao-bh
+#| fig-cap: "Belo Horizonte. Composição de cada parcela. As seis espécies mais abundantes no sítio ficam separadas."
+#| fig-width: 7.4
+#| fig-height: 4.8
+grafico_composicao(bh)
+```
+
+A biomassa por parcela não é o que separa os talhões 558, 559 e 560. A família de sete testes de Kruskal–Wallis, com Holm, é a leitura que vale.
+
+```{r}
+#| label: fig-talhoes
+#| fig-cap: "Belo Horizonte. Cada ponto é uma parcela. O talhão 561 não entra no Kruskal–Wallis porque não tem repetição."
+#| fig-width: 7.4
+#| fig-height: 3.8
+grafico_talhoes(bh)
+```
+
+```{r}
+#| label: tbl-medianas-bh
+#| tbl-cap: "Mediana de cada talhão em Belo Horizonte. O talhão 561 é uma parcela."
+med_bh <- res$med_talhao %>%
+  dplyr::filter(codigo_fazenda == "BH") %>%
+  dplyr::transmute(
+    Talhão = talhao,
+    Parcelas = n_parcelas,
+    `AGB (kg)` = fmt_num(mediana_agb5_kg, 0),
+    Indivíduos = fmt_num(mediana_individuos, 0),
+    Riqueza = fmt_num(mediana_riqueza, 1),
+    `Altura (m)` = fmt_num(mediana_altura_m, 2),
+    `Sadios (%)` = fmt_num(100 * mediana_prop_sadio, 0)
+  )
+knitr::kable(med_bh)
+```
+
+```{r}
+#| label: tbl-kw-bh
+#| tbl-cap: "Kruskal–Wallis entre os talhões 558, 559 e 560. O p de Holm corrige os sete testes."
+knitr::kable(tabela_kw(res$kw))
+```
+
+```{r}
+#| label: tbl-pares-bh
+#| tbl-cap: "Pares de talhões nas variáveis com p bruto abaixo de 0,05. O p já está corrigido por Holm dentro de cada variável."
+pares_bh <- res$pares %>%
+  dplyr::transmute(
+    Variável = rotulo_variavel(variavel),
+    Contraste = paste(grupo1, "×", grupo2),
+    p = fmt_p(p_holm)
+  )
+knitr::kable(pares_bh)
+```
+
+Na PERMANOVA de Hellinger entre talhões, usando só parcelas com retângulo exclusivo, R² = `r fmt_num(100 * res$permanova$r2, 1)`% e *p* = `r fmt_p(res$permanova$p)` (`r res$permanova$n` parcelas; `r res$permanova$n_excluidas` ficaram de fora; 999 permutações). A conta que trata os retângulos repetidos como locais independentes tem R² = `r fmt_num(100 * res$permanova_retangulos_repetidos$r2, 1)`% e *p* = `r fmt_p(res$permanova_retangulos_repetidos$p)` (`r res$permanova_retangulos_repetidos$n` parcelas). Essa segunda conta não é a leitura principal. O Kruskal–Wallis continua com cada inventário, porque a resposta é a parcela medida.
+
+A cobertura de folha estreita acompanha parcelas com menos indivíduos: Spearman ρ = `r fmt_num(spear("BH", "perc_folha_estreita", "n_individuos", "rho"), 2)`, *p* de Holm = `r fmt_p(spear("BH", "perc_folha_estreita", "n_individuos", "p_holm"))`. Contra a biomassa, ρ = `r fmt_num(spear("BH", "perc_folha_estreita", "agb5_kg", "rho"), 2)` e *p* de Holm = `r fmt_p(spear("BH", "perc_folha_estreita", "agb5_kg", "p_holm"))`. Formiga e cupim não separam biomassa nem número de vivos dentro desta fazenda. A leitura é exploratória. O desenho não separa se a folha estreita ocupou a falha do plantio ou se o plantio falhou onde a folha já estava. Não há modelo com a cobertura como causa.
+
+```{r}
+#| label: fig-folha-bh
+#| fig-cap: "Belo Horizonte. Folha estreita e indivíduos vivos. Associação exploratória: o desenho não separa causa e consequência."
+#| fig-width: 6.4
+#| fig-height: 4.2
+grafico_folha_estreita(bh)
+```
+
+# Entre Rios
+
+Nas `r nrow(inv_er)` parcelas há `r fmt_num(sum(inv_er$agb5_kg) / 1000, 2)` Mg de biomassa aérea nos fustes com DAP ≥ 5 cm. Desse total, `r fmt_num(sum(inv_er$agb5_plantio_kg) / 1000, 2)` Mg são do plantio e `r fmt_num(sum(inv_er$agb5_regen_kg), 0)` kg são de indivíduos marcados como regeneração. O número do plantio é `r fmt_num(sum(inv_er$agb5_plantio_kg) / 1000, 2)` Mg. O total de `r fmt_num(sum(inv_er$agb5_kg) / 1000, 2)` Mg inclui a regeneração. O carbono principal do plantio, com a fração 0,47, é `r fmt_num(sum(inv_er$agb5_plantio_kg) * 0.47 / 1000, 2)` Mg. A mediana por parcela, no total, é `r fmt_num(median(inv_er$agb5_kg), 0)` kg. Onde a geometria foi aceita, a mediana é `r fmt_num(median(inv_er$agb5_mg_ha, na.rm = TRUE), 1)` Mg/ha. O povoamento é mais jovem do que o de Belo Horizonte: muitos fustes ficam abaixo de 5 cm e não entram na biomassa principal.
+
+```{r}
+#| label: fig-biomassa-er
+#| fig-cap: "Entre Rios. Biomassa aérea com as quatro parcelas de cada tratamento lado a lado. Inclui a regeneração; a separação está na figura seguinte."
+#| fig-width: 7.4
+#| fig-height: 4.4
+grafico_biomassa(er)
+```
+
+```{r}
+#| label: fig-origem-er
+#| fig-cap: "Entre Rios. A barra azul é o plantio. A barra laranja é a regeneração marcada na ficha. DAP ≥ 5 cm."
+#| fig-width: 7.4
+#| fig-height: 4.4
+grafico_origem(er)
+```
+
+```{r}
+#| label: fig-trat
+#| fig-cap: "Entre Rios. Quatro parcelas em cada tratamento. Este é o fator replicado do sítio."
+#| fig-width: 7.6
+#| fig-height: 3.8
+grafico_tratamentos(er)
+```
+
+```{r}
+#| label: tbl-biomassa-er
+#| tbl-cap: "Entre Rios. Biomassa e estrutura por parcela. Mg/ha fica em branco quando o anel do GPS foi rejeitado."
+knitr::kable(tabela_estrutura(er$resumo))
+```
+
+```{r}
+#| label: tbl-medianas-er
+#| tbl-cap: "Mediana de cada tratamento em Entre Rios. Cada linha resume quatro parcelas."
+med_er <- res$med_trat %>%
+  dplyr::filter(codigo_fazenda == "ER") %>%
+  dplyr::arrange(as.integer(gsub("\\D", "", tratamento))) %>%
+  dplyr::transmute(
+    Tratamento = tratamento,
+    Parcelas = n_parcelas,
+    `AGB (kg)` = fmt_num(mediana_agb5_kg, 0),
+    `AGB plantio (kg)` = fmt_num(mediana_agb5_plantio_kg, 0),
+    Indivíduos = fmt_num(mediana_individuos, 0),
+    Riqueza = fmt_num(mediana_riqueza, 1),
+    `Altura (m)` = fmt_num(mediana_altura_m, 2),
+    `Sadios (%)` = fmt_num(100 * mediana_prop_sadio, 0),
+    `Regeneração (%)` = fmt_num(100 * mediana_regen, 0)
+  )
+knitr::kable(med_er)
+```
+
+Há `r format(sum(inv_er$n_individuos), big.mark = ".", decimal.mark = ",")` indivíduos vivos, dos quais `r format(sum(inv_er$n_plantio, na.rm = TRUE), big.mark = ".", decimal.mark = ",")` sem marca de regeneração e `r format(sum(inv_er$n_regen, na.rm = TRUE), big.mark = ".", decimal.mark = ",")` marcados como regeneração, e `r format(sum(inv_er$n_mudas), big.mark = ".", decimal.mark = ",")` mudas com DAP abaixo de 1 cm. Sadios: `r fmt_num(100 * mean(er$individuos$fito == "sadio", na.rm = TRUE), 1)`%. Deterioração inicial: `r fmt_num(100 * mean(er$individuos$fito == "inicial", na.rm = TRUE), 1)`%. Avançada: `r fmt_num(100 * mean(er$individuos$fito == "avancado", na.rm = TRUE), 1)`%. A coluna Regeneração existe só nesta planilha: `r fmt_num(100 * mean(er$individuos$regeneracao, na.rm = TRUE), 1)`% dos indivíduos foram marcados como regeneração. Em Belo Horizonte essa coluna não existe e a proporção fica em branco. Não é sobrevivência do plantio. A palavra "Muda" na planilha de Entre Rios não define a muda: o protocolo define muda como DAP abaixo de 1 cm. Em Belo Horizonte a coluna concorda com essa regra. Em Entre Rios, os `r format(sum(inv_er$n_mudas), big.mark = ".", decimal.mark = ",")` indivíduos sem fuste de DAP ≥ 1 cm são exatamente aqueles em que todas as linhas trazem a palavra "Muda".
+
+```{r}
+#| label: fig-vivos-er
+#| fig-cap: "Entre Rios. Indivíduos vivos por parcela, coloridos pelo tratamento."
+#| fig-width: 7.4
+#| fig-height: 4.2
+grafico_individuos(er)
+```
+
+```{r}
+#| label: fig-sanidade-er
+#| fig-cap: "Entre Rios. Estado fitossanitário dos indivíduos registrados."
+#| fig-width: 7.4
+#| fig-height: 4.4
+grafico_sanidade(er)
+```
+
+```{r}
+#| label: fig-estrutura-er
+#| fig-cap: "Entre Rios. Altura e diâmetro equivalente. A maior parte dos indivíduos fica à esquerda da linha de 5 cm."
+#| fig-width: 6.4
+#| fig-height: 4.2
+grafico_estrutura(er)
+```
+
+O inventário tem `r dplyr::n_distinct(er$individuos$especie)` nomes, contando o plantio e a regeneração. *`r lider_agb(er$especies)$especie_nome`* concentra `r fmt_num(100 * lider_agb(er$especies)$pct_agb5, 1)`% da biomassa acima de 5 cm nesse total. A espécie mais abundante é *`r er$especies$especie_nome[1]`*, com `r fmt_num(100 * er$especies$pct_n[1], 1)`% dos indivíduos. No plantio sozinho há `r dplyr::n_distinct(er$especies_origem$especie[er$especies_origem$origem == "plantio"])` nomes. *`r lider_agb(er$especies_origem %>% dplyr::filter(origem == "plantio"))$especie_nome`* concentra `r fmt_num(100 * lider_agb(er$especies_origem %>% dplyr::filter(origem == "plantio"))$pct_agb5, 1)`% da biomassa do plantio, e a espécie mais abundante do plantio é *`r er$especies_origem$especie_nome[er$especies_origem$origem == "plantio"][which.max(er$especies_origem$n[er$especies_origem$origem == "plantio"])]`*.
+
+```{r}
+#| label: fig-especies-er
+#| fig-cap: "Entre Rios. As doze espécies mais abundantes, em indivíduos e em biomassa dos fustes com DAP ≥ 5 cm."
+#| fig-width: 7.4
+#| fig-height: 5.2
+grafico_especies(er)
+```
+
+```{r}
+#| label: tbl-especies-er
+#| tbl-cap: "Entre Rios. Doze espécies mais abundantes."
+knitr::kable(tabela_especies(er$especies))
+```
+
+```{r}
+#| label: fig-composicao-er
+#| fig-cap: "Entre Rios. Composição de cada parcela."
+#| fig-width: 7.4
+#| fig-height: 4.8
+grafico_composicao(er)
+```
+
+```{r}
+#| label: tbl-kw-er
+#| tbl-cap: "Kruskal–Wallis entre os tratamentos T1 a T7 de Entre Rios. Quatro parcelas por tratamento. O p de Holm corrige os sete testes. O poder é o de uma ANOVA com o mesmo n e o mesmo épsilon-quadrado, em alfa de 0,05."
+kw_er <- res$kw_trat %>%
+  dplyr::transmute(
+    Variável = variavel_nome,
+    H = fmt_num(estatistica, 2),
+    `Épsilon²` = fmt_num(efeito, 2),
+    `Poder (%)` = fmt_num(100 * poder_aprox, 0),
+    p = fmt_p(p),
+    `p Holm` = fmt_p(p_holm)
+  )
+knitr::kable(kw_er)
+```
+
+```{r}
+#| label: tbl-pares-er
+#| tbl-cap: "Pares de tratamentos. Nenhum contraste da família de sete ficou abaixo de 0,05 depois de Holm. Isso não significa que os tratamentos são iguais."
+pares_er <- res$pares_trat %>%
+  dplyr::filter(is.finite(p_holm), p_holm < 0.05) %>%
+  dplyr::transmute(
+    Variável = rotulo_variavel(variavel),
+    Contraste = paste(grupo1, "×", grupo2),
+    p = fmt_p(p_holm)
+  )
+if (nrow(pares_er) == 0) {
+  pares_er <- data.frame(Resultado = "Nenhum par ficou abaixo de 0,05 depois de Holm.")
+}
+knitr::kable(pares_er)
+```
+
+Com quatro parcelas em cada um de sete tratamentos, o épsilon-quadrado que teria cerca de 80% de poder, numa ANOVA com o mesmo n e alfa de 0,05, é `r fmt_num(res$kw_trat$eps2_80[1], 2)`. No limiar mais duro de Holm, 0,05 dividido pelos sete testes, esse valor sobe para `r fmt_num(res$kw_trat$eps2_80_holm[1], 2)`. O maior épsilon-quadrado observado na família é `r fmt_num(max(res$kw_trat$efeito), 2)`, na proporção de sadios, com poder aproximado de `r fmt_num(100 * res$kw_trat$poder_aprox[which.max(res$kw_trat$efeito)], 0)`%. Não rejeitar depois de Holm não significa que os tratamentos são iguais. A biomassa só do plantio, testada fora dessa família de sete, tem épsilon-quadrado `r fmt_num(res$kw_plantio$efeito, 2)` e *p* = `r fmt_p(res$kw_plantio$p)`.
+
+Na PERMANOVA de Hellinger entre tratamentos, com todos os indivíduos, R² = `r fmt_num(100 * res$permanova_tratamento$r2, 1)`% e *p* = `r fmt_p(res$permanova_tratamento$p)` (`r res$permanova_tratamento$n` parcelas, 999 permutações). Só com o plantio, R² = `r fmt_num(100 * res$permanova_tratamento_plantio$r2, 1)`% e *p* = `r fmt_p(res$permanova_tratamento_plantio$p)`. O teste de tratamento usa o inventário. O anel colapsado tira a parcela do mapa e do Mg/ha, e não apaga os fustes.
+
+Folha estreita contra o número de indivíduos: ρ = `r fmt_num(spear("ER", "perc_folha_estreita", "n_individuos", "rho"), 2)`, *p* de Holm = `r fmt_p(spear("ER", "perc_folha_estreita", "n_individuos", "p_holm"))`. Contra a biomassa: ρ = `r fmt_num(spear("ER", "perc_folha_estreita", "agb5_kg", "rho"), 2)`, *p* de Holm = `r fmt_p(spear("ER", "perc_folha_estreita", "agb5_kg", "p_holm"))`.
+
+# Os tratamentos de Entre Rios em detalhe
+
+Esta seção usa só o plantio: os indivíduos marcados como regeneração não entram, porque não foram plantados pelo tratamento. São sete respostas por parcela: biomassa com DAP ≥ 5 cm, indivíduos vivos, riqueza, altura média, área basal, proporção sadia e proporção de indivíduos com algum fuste de DAP ≥ 5 cm. A última mede quantos indivíduos já entraram no domínio da equação de biomassa.
+
+A análise segue cinco perguntas. Qual é a posição de cada tratamento? Quantas vezes cada um fica em primeiro quando as quatro parcelas são reamostradas? O primeiro lugar continua quando se retira a melhor parcela desse tratamento? Algum modelo que usa mais informação, como a contagem de árvores ou a altura de cada árvore, separa os tratamentos? E qual diferença o desenho conseguiria detectar?
+
+```{r}
+#| label: fig-pontos-trat-er
+#| fig-cap: "Entre Rios, só o plantio. Cada ponto é uma parcela. O traço é a mediana do tratamento."
+#| fig-width: 7.6
+#| fig-height: 3.6
+grafico_tratamentos_plantio(at)
+```
+
+```{r}
+#| label: fig-ranking-er
+#| fig-cap: "Entre Rios, só o plantio. Mediana de cada tratamento e posição entre os sete. Uma posição não é uma diferença testada."
+#| fig-width: 7.6
+#| fig-height: 4
+grafico_ranking_tratamentos(at)
+```
+
+T4 tem a maior mediana em `r at$posicao_media$n_primeiro[at$posicao_media$tratamento == "T4"]` das sete variáveis: biomassa (`r fmt_num(rob("agb_plantio_kg", "mediana_lider"), 0)` kg contra `r fmt_num(rob("agb_plantio_kg", "mediana_segundo"), 0)` kg do segundo, `r rob("agb_plantio_kg", "segundo")`), altura média, área basal e proporção de indivíduos com DAP ≥ 5 cm. É também o tratamento com a melhor posição média. T1 e T7 têm mais indivíduos vivos, e T1, T2 e T7 empatam na riqueza. T6 e T7 têm a maior proporção de sadios. T1, T2 e T5 têm as piores posições médias em crescimento e sanidade. Em estabelecimento, porém, T1 está entre os melhores.
+
+```{r}
+#| label: fig-prob-er
+#| fig-cap: "Entre Rios, só o plantio. Fração das 2.000 reamostragens em que cada tratamento teve a maior média. A reamostragem de quatro parcelas mostra a estabilidade da ordem observada; não é um teste."
+#| fig-width: 7.6
+#| fig-height: 4
+grafico_prob_melhor(at)
+```
+
+```{r}
+#| label: tbl-robustez-er
+#| tbl-cap: "Firmeza do primeiro lugar. 'Sem a melhor parcela': posição do líder quando se retira a parcela em que ele foi melhor. 'Mantém o 1º': fração das 28 retiradas de uma parcela em que o líder continua em primeiro."
+knitr::kable(at$robustez %>% dplyr::transmute(
+  Variável = variavel_nome,
+  Líder = lider,
+  Segundo = segundo,
+  `Parcela retirada` = parcela_retirada,
+  `Sem a melhor parcela` = paste0(posicao_sem_melhor_parcela, "º"),
+  `Mantém o 1º (%)` = fmt_num(100 * prop_jackknife_lider, 0)
+))
+```
+
+O sinal mais estável é o crescimento em altura de T4. T4 continua em primeiro na altura média e na proporção com DAP ≥ 5 cm mesmo sem a sua melhor parcela, e em todas as 28 retiradas de uma parcela. Na biomassa, a liderança depende da parcela `r rob("agb_plantio_kg", "parcela_retirada")`: sem ela, T4 cai para a posição `r rob("agb_plantio_kg", "posicao_sem_melhor_parcela")`. Em vivos, riqueza e sanidade, o primeiro lugar troca de tratamento com facilidade.
+
+```{r}
+#| label: tbl-modelos-er
+#| tbl-cap: "Modelos que usam mais informação que a mediana. O p de Holm corrige os cinco modelos."
+knitr::kable(at$modelos$tabela %>% dplyr::transmute(
+  Resposta = resposta,
+  Modelo = modelo,
+  Estatística = fmt_num(estatistica, 2),
+  gl = gl,
+  p = fmt_p(p),
+  `p Holm` = fmt_p(p_holm)
+))
+```
+
+Nenhum modelo separa os tratamentos depois de Holm. O mais próximo é a sanidade no modelo quase-binomial (*p* bruto = `r fmt_p(mod_p("Proporção sadia"))`), que pesa cada parcela pelo número de árvores avaliadas. O modelo misto da altura compara árvores da mesma espécie e põe a parcela como efeito aleatório. Mesmo assim, T4 fica `r fmt_num(100 * (at$modelos$altura_mesma_especie$razao_altura[at$modelos$altura_mesma_especie$tratamento == "T4"] - 1), 0)`% mais alto que T1, enquanto os outros tratamentos ficam a 3% de T1 ou menos. A vantagem de T4 não parece vir só de ter espécies mais altas. O teste conjunto, porém, não passa (*p* = `r fmt_p(mod_p("Altura do indivíduo, mesma espécie"))`).
+
+```{r}
+#| label: tbl-mde-er
+#| tbl-cap: "Menor diferença entre dois tratamentos que o desenho detecta com 80% de poder, com quatro parcelas por tratamento e o desvio entre parcelas observado. A última coluna aplica o Bonferroni dos 21 pares."
+knitr::kable(at$mde %>% dplyr::transmute(
+  Variável = variavel_nome,
+  `Média geral` = fmt_num(media_geral, 2),
+  `DP entre parcelas` = fmt_num(dp_dentro, 2),
+  `Diferença detectável` = fmt_num(dif_detectavel, 2),
+  `% da média` = fmt_num(100 * dif_pct_media, 0),
+  `Com 21 pares` = fmt_num(dif_detectavel_holm, 2)
+))
+```
+
+A biomassa é a resposta mais ruidosa. Duas parcelas do mesmo tratamento podem diferir num fator de cinco, e a diferença detectável, cerca de `r fmt_num(mde("agb_plantio_kg", "dif_detectavel"), 0)` kg, é maior que a média por parcela. A altura e a sanidade são respostas mais precisas: o desenho detecta diferenças de `r fmt_num(mde("altura_plantio_m", "dif_detectavel"), 2)` m e de `r fmt_num(100 * mde("prop_sadio_plantio", "dif_detectavel"), 0)` pontos percentuais. A distância observada entre T4 e o tratamento mais baixo em altura chega perto desse limiar, mas não o alcança.
+
+```{r}
+#| label: tbl-comp-er
+#| tbl-cap: "Espécie que mais pesa na biomassa do plantio em cada tratamento."
+knitr::kable(at$composicao %>% dplyr::transmute(
+  Tratamento = tratamento,
+  `Espécies` = riqueza_total,
+  `Mais biomassa` = especie_top_agb,
+  `% da biomassa` = fmt_num(100 * pct_top_agb, 0),
+  `Mais indivíduos` = especie_top_n,
+  `% dos indivíduos` = fmt_num(100 * pct_top_n, 0)
+))
+```
+
+A biomassa de cada tratamento depende de poucas espécies de crescimento rápido. Em T7, *Senegalia polyphylla* tem quase metade da biomassa do plantio. Em T4 e T5, *Senna multijuga* lidera. Se os tratamentos diferem na mistura de espécies plantadas, a diferença de biomassa mistura o tratamento com a escolha das espécies. A comparação de altura dentro da mesma espécie é a que mais se aproxima de um efeito do tratamento sobre o crescimento.
+
+**O que dá para afirmar.** Nesta campanha, T4 é o candidato mais consistente a melhor crescimento: maior altura, mais indivíduos acima de 5 cm e maior biomassa mediana. A ordem em altura resiste à retirada de qualquer parcela. T6 e T7 se destacam em sanidade, e T1 e T7 em indivíduos vivos.
+
+**O que não dá para afirmar.** Nenhuma diferença foi demonstrada depois da correção para múltiplos testes, e os tratamentos não são iguais por isso. Com quatro parcelas, só efeitos grandes seriam detectados. A diferença de vivos não é sobrevivência enquanto o número plantado por parcela não chegar. O croqui não informa blocos. Se as parcelas de um tratamento ficam agrupadas no terreno, o efeito do tratamento se mistura com o do local. O GPS de 13 das 28 parcelas está pendente, e isso impede checar essa mistura no mapa.
+
+**Como fortalecer a inferência.** Remedir as mesmas 28 parcelas e analisar o incremento por parcela entre campanhas, que remove a diferença de partida entre parcelas. Registrar o número plantado por parcela e as covas vazias. Corrigir o GPS para incluir a posição, ou o bloco, como covariável. Se o croqui tiver blocos, incluí-los no modelo.
+
+# As duas fazendas
+
+O Wilcoxon compara as parcelas inventariadas das duas fazendas. A correção de Holm é dentro desta família de sete testes. Uma diferença aqui mistura idade do plantio, solo, flora e região. Não é o efeito dos tratamentos T1 a T7.
+
+```{r}
+#| label: fig-fazendas
+#| fig-cap: "Cada ponto é uma parcela inventariada. As floras não são as mesmas."
+#| fig-width: 7.4
+#| fig-height: 3.8
+grafico_fazendas(res)
+```
+
+```{r}
+#| label: tbl-fazendas
+#| tbl-cap: "Wilcoxon entre Belo Horizonte e Entre Rios. O p de Holm corrige os sete testes."
+faz <- res$testes_fazenda %>%
+  dplyr::transmute(
+    Variável = variavel_nome,
+    `Mediana BH` = fmt_num(mediana_bh, 1),
+    `Mediana ER` = fmt_num(mediana_er, 1),
+    W = fmt_num(estatistica, 0),
+    p = fmt_p(p),
+    `p Holm` = fmt_p(p_holm)
+  )
+knitr::kable(faz)
+```
+
+A PERMANOVA de Hellinger entre fazendas, sem tratar como independentes as parcelas de Belo Horizonte que compartilham retângulo, tem R² = `r fmt_num(100 * res$permanova_fazenda$r2, 1)`% e *p* = `r fmt_p(res$permanova_fazenda$p)` (`r res$permanova_fazenda$n` parcelas, 999 permutações). A conta com todas as parcelas tem R² = `r fmt_num(100 * res$permanova_fazenda_todas$r2, 1)`% e *p* = `r fmt_p(res$permanova_fazenda_todas$p)`. A composição muda porque as listas de espécies quase não se sobrepõem. Isso descreve os dois sítios, a cerca de 1.500 km um do outro. Não é o efeito dos tratamentos T1 a T7.
+
+# O que dá para concluir
+
+Em Belo Horizonte o estoque aéreo no domínio da equação de Chave está em `r fmt_num(sum(inv_bh$agb5_kg) / 1000, 2)` Mg. O intervalo de 95% devido só à densidade da madeira vai de `r fmt_num(res$incerteza_fazenda$agb5_kg_wd_inf[res$incerteza_fazenda$codigo_fazenda == "BH"] / 1000, 2)` a `r fmt_num(res$incerteza_fazenda$agb5_kg_wd_sup[res$incerteza_fazenda$codigo_fazenda == "BH"] / 1000, 2)` Mg. A mediana é de `r fmt_num(median(inv_bh$agb5_mg_ha, na.rm = TRUE), 0)` Mg/ha onde o polígono é confiável. Os talhões não se separam pela biomassa. A riqueza se separa. A diferença de composição entre talhões, na PERMANOVA que deixa de fora os retângulos compartilhados, tem *p* = `r fmt_p(res$permanova$p)`.
+
+Em Entre Rios o número do plantio, no mesmo domínio, é `r fmt_num(sum(inv_er$agb5_plantio_kg) / 1000, 2)` Mg. O total que inclui a regeneração é `r fmt_num(sum(inv_er$agb5_kg) / 1000, 2)` Mg. O teste de tratamento tem quatro parcelas em cada um de T1 a T7. A ausência de significância depois de Holm convive com épsilon-quadrado de até `r fmt_num(max(res$kw_trat$efeito), 2)` e com poder baixo para efeitos menores que `r fmt_num(res$kw_trat$eps2_80[1], 2)`. Os tratamentos não ficam declarados iguais. Vários polígonos do GPS estão colapsados ou abaixo do critério. O Mg/ha dessas parcelas fica em branco. A biomassa em quilogramas por parcela não depende desse GPS.
+
+A taxa de sobrevivência continua em aberto nas duas fazendas. O arquivo com o número de mudas plantadas por parcela não está na pasta de dados. Nenhum denominador foi estimado.
+
+Os arquivos estão em `saida/`: `parcelas_BH.gpkg` e `parcelas_ER.gpkg` (camadas `pontos` e `parcelas`), `resumo_parcelas.csv`, `individuos.csv`, `pendencias_campo.csv`, `conflitos_especie.csv`, `sensibilidade_carbono.csv`, `incerteza_madeira.csv` e as tabelas dos testes.
+
+# Referências
+
+Chave, J., Réjou-Méchain, M., Búrquez, A., Chidumayo, E., Colgan, M. S., Delitti, W. B. C., … Vieilledent, G. (2014). Improved allometric models to estimate the aboveground biomass of tropical trees. *Global Change Biology*, 20(10), 3177–3190.
+
+IPCC (2006). *2006 IPCC Guidelines for National Greenhouse Gas Inventories. Volume 4: Agriculture, Forestry and Other Land Use*. Institute for Global Environmental Strategies.
+
+Réjou-Méchain, M., Tanguy, A., Piponiot, C., Chave, J., & Hérault, B. (2017). BIOMASS: an R package for estimating above-ground biomass and its uncertainty in tropical forests. *Methods in Ecology and Evolution*, 8(9), 1163–1167.
+
+Zanne, A. E., Lopez-Gonzalez, G., Coomes, D. A., Ilic, J., Jansen, S., Lewis, S. L., … Chave, J. (2009). Data from: Towards a worldwide wood economics spectrum. Dryad Digital Repository. Base de densidade usada pelo pacote BIOMASS.
