@@ -1,0 +1,50 @@
+variavel,variavel_nome,tratamento,prob_melhor
+agb_plantio_kg,Biomassa (kg/parcela),T1,0.0055
+agb_plantio_kg,Biomassa (kg/parcela),T2,0.036
+agb_plantio_kg,Biomassa (kg/parcela),T3,0.038
+agb_plantio_kg,Biomassa (kg/parcela),T4,0.076
+agb_plantio_kg,Biomassa (kg/parcela),T5,0.0225
+agb_plantio_kg,Biomassa (kg/parcela),T6,0.79
+agb_plantio_kg,Biomassa (kg/parcela),T7,0.032
+sobrev_plantio,Sobrevivência (% das 150 mudas),T1,0.1445
+sobrev_plantio,Sobrevivência (% das 150 mudas),T2,0.10325
+sobrev_plantio,Sobrevivência (% das 150 mudas),T3,0.28275
+sobrev_plantio,Sobrevivência (% das 150 mudas),T4,0.052
+sobrev_plantio,Sobrevivência (% das 150 mudas),T5,0
+sobrev_plantio,Sobrevivência (% das 150 mudas),T6,0.41275
+sobrev_plantio,Sobrevivência (% das 150 mudas),T7,0.00475
+riqueza_plantio,Riqueza,T1,0.511
+riqueza_plantio,Riqueza,T2,0.16733333333333333
+riqueza_plantio,Riqueza,T3,0.00125
+riqueza_plantio,Riqueza,T4,0.024
+riqueza_plantio,Riqueza,T5,0.0735
+riqueza_plantio,Riqueza,T6,0.1775
+riqueza_plantio,Riqueza,T7,0.04541666666666667
+altura_plantio_m,Altura média (m),T1,0.07
+altura_plantio_m,Altura média (m),T2,0.0135
+altura_plantio_m,Altura média (m),T3,0.106
+altura_plantio_m,Altura média (m),T4,0.0375
+altura_plantio_m,Altura média (m),T5,0.032
+altura_plantio_m,Altura média (m),T6,0.734
+altura_plantio_m,Altura média (m),T7,0.007
+sa_plantio_m2,Área seccional a 30 cm (m²/parcela),T1,0.146
+sa_plantio_m2,Área seccional a 30 cm (m²/parcela),T2,0.2635
+sa_plantio_m2,Área seccional a 30 cm (m²/parcela),T3,0.051
+sa_plantio_m2,Área seccional a 30 cm (m²/parcela),T4,0.4275
+sa_plantio_m2,Área seccional a 30 cm (m²/parcela),T5,0.064
+sa_plantio_m2,Área seccional a 30 cm (m²/parcela),T6,0.04
+sa_plantio_m2,Área seccional a 30 cm (m²/parcela),T7,0.008
+prop_sadio_plantio,Proporção sadia,T1,0.225
+prop_sadio_plantio,Proporção sadia,T2,0.678
+prop_sadio_plantio,Proporção sadia,T3,0
+prop_sadio_plantio,Proporção sadia,T4,0.061
+prop_sadio_plantio,Proporção sadia,T5,0.01
+prop_sadio_plantio,Proporção sadia,T6,0
+prop_sadio_plantio,Proporção sadia,T7,0.026
+prop_dap5_plantio,Proporção com DAP ≥ 5 cm,T1,5e-4
+prop_dap5_plantio,Proporção com DAP ≥ 5 cm,T2,0
+prop_dap5_plantio,Proporção com DAP ≥ 5 cm,T3,0
+prop_dap5_plantio,Proporção com DAP ≥ 5 cm,T4,0.75
+prop_dap5_plantio,Proporção com DAP ≥ 5 cm,T5,0.1715
+prop_dap5_plantio,Proporção com DAP ≥ 5 cm,T6,0.078
+prop_dap5_plantio,Proporção com DAP ≥ 5 cm,T7,0

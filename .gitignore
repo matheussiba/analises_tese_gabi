@@ -1,0 +1,8 @@
+# Quarto / R noise
+**/.quarto/
+**/.Rhistory
+**/.RData
+
+# SQLite/GeoPackage write-ahead files
+*-shm
+*-wal

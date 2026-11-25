@@ -1,0 +1,80 @@
+```{r}
+#| include: false
+rs <- res$resumo %>% dplyr::filter(tem_inventario)
+at <- res$tratamentos
+nome <- res$nome
+n_trat <- table(rs$tratamento)
+texto_n <- paste0(names(n_trat), " (", as.integer(n_trat), ")", collapse = ", ")
+sem_inv <- sf::st_drop_geometry(res$parcelas) %>% dplyr::filter(!tem_inventario)
+texto_falta <- if (nrow(sem_inv) == 0) {
+  ""
+} else {
+  paste0(" (sem inventário: ", paste0("P", sem_inv$parcela, ", ", sem_inv$tratamento, collapse = "; "), ")")
+}
+datas <- format(range(res$parcelas$data_coleta, na.rm = TRUE), "%d/%m/%Y")
+lider <- function(tab) tab %>% dplyr::arrange(dplyr::desc(agb_kg)) %>% dplyr::slice(1)
+total_mg <- sum(rs$agb_kg) / 1000
+regen_mg <- sum(rs$agb_regen_kg) / 1000
+sadios <- mean(res$individuos$fito == "sadio", na.rm = TRUE)
+texto_regen <- if (res$tem_regeneracao) {
+  paste0(
+    "A ficha marca regeneração em ", fmt_pct(mean(res$individuos$origem == "regeneracao"), 1),
+    " dos indivíduos. Ela entra no total de biomassa e fica de fora das comparações entre tratamentos."
+  )
+} else {
+  "A ficha desta fazenda não tem coluna de regeneração: todo indivíduo conta como plantio."
+}
+texto_regen_bio <- if (res$tem_regeneracao) {
+  paste0("A regeneração soma ", fmt_num(regen_mg, 2), " Mg (", fmt_pct(regen_mg / total_mg, 1), " do total) e está nas barras. ")
+} else {
+  ""
+}
+bio_trat <- rs %>%
+  dplyr::group_by(tratamento) %>%
+  dplyr::summarise(med = median(agb_kg), mn = min(agb_kg), mx = max(agb_kg), .groups = "drop") %>%
+  dplyr::arrange(dplyr::desc(med))
+```
+
+## A fazenda e o experimento
+
+- `r nome`: `r nrow(res$parcelas)` parcelas de 30 × 30 m (900 m²), cada uma com 150 mudas plantadas. `r sum(res$resumo$tem_inventario)` têm inventário`r texto_falta`, coletado de `r datas[1]` a `r datas[2]`.
+- Sete tratamentos, T1 a T7. Parcelas inventariadas por tratamento: `r texto_n`.
+- Posição e tratamento vêm do GeoPackage. As colunas de coordenada e de tratamento das planilhas não foram usadas.
+- Não há árvore morta nem replantio na ficha. `r texto_regen`
+
+## Como a biomassa foi calculada
+
+$$\ln(AGBW) = 6.039 + 0.945\,\ln(SA) + 0.961\,\ln(Ht) + 1.022\,\ln(\rho)$$
+
+- Ferez et al. (2015). AGBW: biomassa lenhosa acima do solo (kg por árvore). SA: área seccional a 30 cm do solo, somada nos fustes do indivíduo (m²). Ht: altura total (m). ρ: densidade da madeira (g/cm³).
+- SA em m² e ρ em g/cm³, as unidades do artigo. Com cm² e kg/m³ a conta dá milhões de quilos por árvore.
+- Entra todo indivíduo vivo com D30, altura e densidade, sem corte de DAP: `r sum(!is.finite(res$individuos$agb_kg))` ficaram sem estimativa.
+- Densidade: espécie, depois gênero, depois a média do sítio. Carbono = 0,47 × biomassa, fração default do IPCC.
+
+## `r nome` no mapa
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.6
+grafico_mapa(res)
+```
+
+## Biomassa por tratamento em `r nome`
+
+`r fmt_num(total_mg, 2)` Mg nos `r nrow(res$individuos)` indivíduos vivos. Mediana de `r fmt_num(median(rs$agb_kg), 0)` kg por parcela, ou `r fmt_num(median(rs$agb_mg_ha), 1)` Mg/ha (900 m²). `r texto_regen_bio`A maior mediana é a de `r bio_trat$tratamento[1]` (`r fmt_num(bio_trat$med[1], 0)` kg), e dentro dele a variação vai de `r fmt_num(bio_trat$mn[1], 0)` a `r fmt_num(bio_trat$mx[1], 0)` kg.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.2
+grafico_biomassa(res)
+```
+
+## Quem carrega o estoque em `r nome`
+
+*`r lider(res$especies)$especie_nome`* tem `r fmt_pct(lider(res$especies)$pct_agb, 1)` da biomassa. A mais abundante é *`r res$especies$especie_nome[1]`* (`r fmt_pct(res$especies$pct_n[1], 1)` dos indivíduos). Sadios: `r fmt_pct(sadios, 1)`.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.2
+grafico_especies(res)
+```

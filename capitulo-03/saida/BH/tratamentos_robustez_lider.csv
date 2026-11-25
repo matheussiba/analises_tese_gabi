@@ -1,0 +1,8 @@
+variavel,variavel_nome,lider,mediana_lider,segundo,mediana_segundo,parcela_retirada,posicao_sem_melhor_parcela,prop_jackknife_lider
+agb_plantio_kg,Biomassa (kg/parcela),T6,1977.8595225669173,T4,1777.3320497244763,6,2,0.9259259259259259
+sobrev_plantio,Sobrevivência (% das 150 mudas),T6,0.7533333333333334,T3,0.6933333333333334,6,1,1
+riqueza_plantio,Riqueza,T1,24.5,T6,22,10,1,1
+altura_plantio_m,Altura média (m),T6,4.299611641457972,T3,3.9689272325290785,6,1,1
+sa_plantio_m2,Área seccional a 30 cm (m²/parcela),T4,1.5157135183084636,T2,1.3713569785198483,13,1,0.8518518518518519
+prop_sadio_plantio,Proporção sadia,T2,0.9730676328502416,T1,0.9438393464942137,25,1,1
+prop_dap5_plantio,Proporção com DAP ≥ 5 cm,T4,0.4722222222222222,T6,0.45208281676171586,13,1,0.9259259259259259

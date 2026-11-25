@@ -1,0 +1,6 @@
+resposta,modelo,estatistica,gl,p,nota,p_holm
+Sobrevivência,"Quase-binomial sobre as 150 mudas, teste F",0.7589084665043582,6,0.6102500461101221,Vivos de plantio sobre 150 plantadas. A sobredispersão entra no teste.,1
+Proporção sadia,"Quase-binomial, teste F",0.9828246576005853,6,0.46258961584145,Usa o número de indivíduos de cada parcela. A sobredispersão entra no teste.,1
+Biomassa (kg/parcela),"Linear em log(1 + kg), teste F",0.86155244892029,6,0.5393465906897236,A escala log reduz o peso das parcelas mais pesadas.,1
+Altura do indivíduo,"Misto, parcela aleatória, razão de verossimilhança",4.4003870515452945,6,0.6226618577471905,"Cada árvore entra, mas a parcela é a unidade do tratamento.",1
+"Altura do indivíduo, mesma espécie","Misto, espécie e parcela aleatórias, razão de verossimilhança",2.8120166686603625,6,0.8320438717096958,Compara a altura dentro da espécie. Tira o efeito da mistura de espécies.,1

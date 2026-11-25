@@ -1,0 +1,304 @@
+---
+title: "Maximização de carbono na restauração ativa: biomassa aérea aos ~24 meses"
+subtitle: "Experimento MaxiC — Fazendas Belo Horizonte (BA) e Entre Rios (MA), re.green"
+lang: pt
+date: "2026-07-31"
+format:
+  docx:
+    toc: true
+    toc-depth: 2
+    number-sections: false
+    fig-align: center
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, dpi = 220,
+                      fig.align = "center")
+raiz <- normalizePath("..")
+source(file.path(raiz, "R", "analise_fazendas.R"))
+bh <- readRDS(file.path(raiz, "saida", "BH", "resultados.rds"))
+er <- readRDS(file.path(raiz, "saida", "ER", "resultados.rds"))
+
+# ---- formatadores pt-BR ----
+f0  <- function(x) formatC(round(x), format = "f", digits = 0, big.mark = ".")
+f1  <- function(x) formatC(x, format = "f", digits = 1, big.mark = ".", decimal.mark = ",")
+f2  <- function(x) formatC(x, format = "f", digits = 2, big.mark = ".", decimal.mark = ",")
+pc  <- function(x) paste0(f0(100 * x), "%")
+CO2 <- 44 / 12
+
+# ---- resumo geral por fazenda ----
+geral <- function(res) {
+  rs <- res$resumo %>% filter(tem_inventario)
+  list(
+    np = nrow(rs), ind = sum(rs$n_individuos),
+    agbtot = sum(rs$agb_kg) / 1000,
+    med_kg = median(rs$agb_kg), med_mgha = median(rs$agb_mg_ha),
+    med_c = median(rs$carbono_mg_ha), med_co2 = median(rs$carbono_mg_ha) * CO2,
+    mgha_min = min(rs$agb_mg_ha), mgha_max = max(rs$agb_mg_ha),
+    dens_min = min(rs$densidade_ha), dens_max = max(rs$densidade_ha),
+    sob_med = median(rs$sobrevivencia), sob_min = min(rs$sobrevivencia), sob_max = max(rs$sobrevivencia),
+    riq_min = min(rs$riqueza), riq_max = max(rs$riqueza),
+    sadio = median(rs$prop_sadio),
+    n_regen = sum(rs$n_regen), agb_regen = sum(rs$agb_regen_kg) / 1000,
+    area_min = min(res$parcelas$area_desenhada_m2), area_max = max(res$parcelas$area_desenhada_m2),
+    d30 = nrow(res$d30_suspeito)
+  )
+}
+B <- geral(bh); E <- geral(er)
+
+# ---- resumo por tratamento ----
+resumo_trat <- function(res) {
+  res$tratamentos$parcelas %>%
+    group_by(tratamento) %>%
+    summarise(
+      n = n(),
+      dens = median(n_plantio / (AREA_PARCELA_M2 / 10000)),
+      sobrev = median(sobrev_plantio) * 100,
+      riq = median(riqueza_plantio),
+      alt = median(altura_plantio_m),
+      agb_mgha = median(agb_plantio_kg) / 1000 / (AREA_PARCELA_M2 / 10000),
+      .groups = "drop"
+    ) %>%
+    mutate(carb = agb_mgha * FRACAO_CARBONO) %>%
+    arrange(tratamento)
+}
+TB <- resumo_trat(bh); TE <- resumo_trat(er)
+lider_bio <- function(tb) tb %>% arrange(desc(agb_mgha)) %>% slice(1)
+baixo_bio <- function(tb) tb %>% arrange(agb_mgha) %>% slice(1)
+LB <- lider_bio(TB); LBx <- baixo_bio(TB)
+LE <- lider_bio(TE); LEx <- baixo_bio(TE)
+
+# PERMANOVA e KW (valores exatos)
+pB <- bh$permanova_tratamento; pE <- er$permanova_tratamento
+kwB_min <- bh$tratamentos$kw %>% arrange(p) %>% slice(1)
+kwE_min <- er$tratamentos$kw %>% arrange(p) %>% slice(1)
+```
+
+# Contextualização
+
+A restauração de pastagens degradadas dominadas por gramíneas exóticas é uma das frentes de maior escala da restauração florestal no Brasil, e o plantio de mudas é a técnica mais usada quando a regeneração natural é limitada (Holl & Aide, 2011). Em projetos orientados ao carbono, interessa não só restaurar o hectare, mas acumular biomassa — e, portanto, carbono — o mais cedo possível, porque o acúmulo inicial antecipa as receitas do estoque (Brancalion et al., 2019a).
+
+Uma das alavancas disponíveis é a **composição do plantio**: aumentar a proporção de espécies de alto potencial de carbono (APC) — espécies de recobrimento, de crescimento rápido e alta produção de biomassa — poderia elevar o estoque inicial sem aumentar a densidade de plantio. O experimento MaxiC (Maximização de Carbono), implantado pela re.green em duas fazendas, foi desenhado para testar essa hipótese. Este relatório consolida o inventário aos cerca de 24 meses e responde a três perguntas: (1) aumentar a proporção de espécies APC no plantio aumenta a biomassa aérea acumulada? (2) esse efeito é consistente entre as duas fazendas? (3) quais espécies de fato carregam o estoque de biomassa em cada sítio?
+
+> **Nota sobre a sigla APC.** Adoto "espécies de alto potencial de carbono" conforme o protocolo do experimento (POP_P&D_MaxiC_v001). Confirme a grafia exata da sigla antes de circular o documento.
+
+# Resumo metodológico
+
+## Áreas experimentais
+
+O estudo foi conduzido em duas propriedades da re.green: a **Fazenda Belo Horizonte**, em Potiraguá (BA), no domínio da Mata Atlântica (Floresta Estacional Semidecidual), e a **Fazenda Entre Rios**, em Maracaçumé (MA), na Amazônia (Floresta Ombrófila Densa). As duas áreas eram pastagens dominadas por *Urochloa*, isoladas de fragmentos florestais e com baixo potencial de regeneração natural. Cada sítio foi analisado separadamente, porque representam condições edafoclimáticas contrastantes e não uma amostra da variabilidade entre biomas.
+
+## Delineamento e tratamentos
+
+O experimento compara **sete tratamentos (T1 a T7)**, que variam a proporção de espécies APC no plantio e o equilíbrio entre espécies de recobrimento e de diversidade (Tabela 1). Cada tratamento tem **quatro parcelas** por fazenda, em delineamento inteiramente casualizado. As parcelas têm **30 × 30 m (900 m²)** e receberam **150 mudas** cada, em 10 linhas de 15 mudas, com espaçamento de 2 m entre mudas.
+
+Em Belo Horizonte foram inventariadas `r B$np` das 28 parcelas (a parcela P26, do T4, foi excluída em campo por declividade, deixando o T4 com três repetições); em Entre Rios, as `r E$np` parcelas. **A posição e o tratamento de cada parcela vêm exclusivamente dos GeoPackages** desenhados em campo (`parcelas_BH.gpkg` e `parcelas_ER.gpkg`); as colunas de coordenada e de tratamento das planilhas de campo não foram usadas, por conterem erros de atribuição.
+
+**Tabela 1 –** Composição dos sete tratamentos do experimento MaxiC.
+
+| Tratamento | Proporção de espécies APC | Equilíbrio recobrimento / diversidade |
+|---|---|---|
+| T1 | 10% | Todas de recobrimento |
+| T2 | 20% | Metade recobrimento, metade diversidade |
+| T3 | 30% | Todas de recobrimento |
+| T4 | 40% | Todas de recobrimento |
+| T5 | 45% | Dois terços recobrimento, um terço diversidade |
+| T6 | 60% | Dobro de recobrimento em relação à diversidade |
+| T7 | Controle | Restauração usual, sem adensamento de APC |
+
+## Implantação e mensuração
+
+O experimento foi implantado entre **maio e junho de 2024** na Belo Horizonte e em **junho de 2024** na Entre Rios. O inventário analisado aqui foi feito em **junho e julho de 2026**, ou seja, cerca de **24 a 25 meses** após o plantio. Foram medidos todos os indivíduos vivos de cada parcela: número de fustes, diâmetro a 30 cm do solo (D30) por fuste, DAP, altura total, diâmetro de copa, espécie e estado fitossanitário.
+
+## Variáveis e análise dos dados
+
+A **biomassa aérea lenhosa por indivíduo** foi estimada pela equação de Ferez et al. (2015), ajustada em plantios jovens de restauração da Mata Atlântica:
+
+$$\ln(\text{AGBW}) = 6{,}039 + 0{,}945\,\ln(\text{SA}) + 0{,}961\,\ln(\text{Ht}) + 1{,}022\,\ln(\rho)$$
+
+em que SA é a área seccional do tronco a 30 cm (soma das seções dos fustes, em m²), Ht é a altura total (m) e $\rho$ é a densidade da madeira (g cm⁻³), obtida da base global do pacote BIOMASS (Réjou-Méchain et al., 2017; Zanne et al., 2009). O carbono foi tomado como **0,47 da biomassa** (IPCC, 2006), e o CO₂ equivalente pela razão 44/12. A biomassa por hectare usa os **900 m² nominais** de cada parcela.
+
+A **sobrevivência** é o número de indivíduos de plantio dividido pelas 150 mudas. A **riqueza** é o número de espécies por parcela, e a **sanidade** é a proporção de indivíduos sadios. A composição de espécies foi comparada entre tratamentos por **PERMANOVA** com distância de Hellinger. As sete variáveis do plantio foram comparadas entre os sete tratamentos por **Kruskal–Wallis** com correção de Holm; como são quatro parcelas por tratamento, o estudo também quantifica a **menor diferença detectável** e a **robustez do primeiro colocado** (reamostragem e jackknife de parcelas). Em Belo Horizonte, cujas parcelas se distribuem por quatro talhões, há ainda uma análise por talhão.
+
+Individuos sem D30 válido ficaram sem estimativa de biomassa (`r B$d30` casos em Belo Horizonte — cinco sem D30 anotado e um com D30 de 93,6 cm, implausível —; nenhum em Entre Rios), listados em `saida/<fazenda>/d30_suspeito.csv`.
+
+# Resultados
+
+## Biomassa aérea e carbono
+
+Aos cerca de 24 meses, a biomassa acumulada foi muito maior na **Belo Horizonte** que na **Entre Rios**. A Belo Horizonte acumulou **`r f1(B$agbtot)` Mg** de biomassa aérea nos `r f0(B$ind)` indivíduos vivos inventariados, com mediana de **`r f0(B$med_kg)` kg por parcela**, equivalente a **`r f1(B$med_mgha)` Mg ha⁻¹** de biomassa e **`r f1(B$med_c)` Mg C ha⁻¹** (≈ `r f1(B$med_co2)` Mg CO₂e ha⁻¹). A Entre Rios acumulou **`r f1(E$agbtot)` Mg** nos `r f0(E$ind)` indivíduos, com mediana de **`r f0(E$med_kg)` kg por parcela**, ou **`r f1(E$med_mgha)` Mg ha⁻¹** (**`r f1(E$med_c)` Mg C ha⁻¹**; ≈ `r f1(E$med_co2)` Mg CO₂e ha⁻¹). A diferença reflete o clima mais úmido, o preparo e a adubação de cada sítio e não os tratamentos, que foram analisados dentro de cada fazenda (Figura 1).
+
+**Figura 1 –** Parcelas das duas fazendas, com a biomassa (kg/parcela) de cada uma e o tratamento (T1 a T7). A: Belo Horizonte; B: Entre Rios.
+
+```{r fig-mapa}
+#| fig-width: 8.2
+#| fig-height: 9.0
+(grafico_mapa(bh) + labs(tag = "A")) /
+  (grafico_mapa(er) + labs(tag = "B"))
+```
+
+O efeito do **adensamento de espécies APC sobre a biomassa foi fraco e inconsistente entre as fazendas** (Figura 2). Na Belo Horizonte, o maior valor mediano foi o do **T6 (60% de APC): `r f1(LB$agb_mgha)` Mg ha⁻¹**, e o menor foi o do **controle T7: `r f1(LBx$agb_mgha)` Mg ha⁻¹** — ordenação coerente com a hipótese, mas não monotônica (o T5, com 45%, ficou entre os mais baixos) e sem significância estatística. Na Entre Rios, o padrão **se inverteu**: o maior valor mediano foi justamente o do **controle T7 (`r f1(LE$agb_mgha)` Mg ha⁻¹)**, e o T6 ficou entre os menores; o menor foi o do **T2 (`r f1(LEx$agb_mgha)` Mg ha⁻¹)**.
+
+Em nenhuma das fazendas o teste de Kruskal–Wallis apontou diferença de biomassa entre tratamentos: a menor probabilidade entre as sete variáveis foi *p* = `r f2(kwB_min$p)` na Belo Horizonte e *p* = `r f2(kwE_min$p)` na Entre Rios, e **nenhuma variável sobrevive à correção de Holm**. A PERMANOVA da composição entre tratamentos foi significativa na Belo Horizonte (R² = `r pc(pB$r2)`, *p* = `r f2(pB$p)`) e não significativa na Entre Rios (R² = `r pc(pE$r2)`, *p* = `r f2(pE$p)`); mesmo onde a composição difere, a biomassa total não se separa.
+
+**Figura 2 –** Biomassa aérea por parcela, agrupada por tratamento (T1 a T7). Tracejado: mediana do tratamento. Traço: incerteza da densidade da madeira. A: Belo Horizonte; B: Entre Rios.
+
+```{r fig-biomassa}
+#| fig-width: 8.4
+#| fig-height: 9.2
+(grafico_biomassa(bh) + labs(tag = "A")) /
+  (grafico_biomassa(er) + labs(tag = "B"))
+```
+
+## Densidade, sobrevivência e riqueza
+
+A densidade de indivíduos vivos variou de `r f0(B$dens_min)` a `r f0(B$dens_max)` ind. ha⁻¹ na Belo Horizonte e de `r f0(E$dens_min)` a `r f0(E$dens_max)` ind. ha⁻¹ na Entre Rios. A **sobrevivência** (vivos de plantio ÷ 150 mudas) foi substancialmente maior na Belo Horizonte — mediana de `r pc(B$sob_med)` (`r pc(B$sob_min)` a `r pc(B$sob_max)`) — do que na Entre Rios — mediana de `r pc(E$sob_med)` (`r pc(E$sob_min)` a `r pc(E$sob_max)`). A **riqueza por parcela** foi de `r B$riq_min` a `r B$riq_max` espécies na Belo Horizonte e de `r E$riq_min` a `r E$riq_max` na Entre Rios. A **sanidade** mediana foi de `r pc(B$sadio)` de indivíduos sadios na Belo Horizonte e `r pc(E$sadio)` na Entre Rios.
+
+Na Entre Rios, a ficha de campo marca **regeneração natural**: `r f0(E$n_regen)` indivíduos (`r f1(E$agb_regen)` Mg, cerca de `r pc(E$agb_regen/E$agbtot)` da biomassa), que entram no total mas ficam de fora das comparações entre tratamentos. A ficha da Belo Horizonte não separa regeneração, de modo que todos os indivíduos contam como plantio; a sobrevivência dessa fazenda pode, por isso, estar superestimada.
+
+A Tabela 2 resume as medianas por tratamento e fazenda.
+
+**Tabela 2 –** Densidade, sobrevivência, riqueza, altura, biomassa e carbono por tratamento (medianas das parcelas), aos ~24 meses.
+
+```{r tab-trat}
+#| ft.align: left
+tb <- bind_rows(
+  resumo_trat(bh) %>% mutate(Fazenda = "Belo Horizonte"),
+  resumo_trat(er) %>% mutate(Fazenda = "Entre Rios")
+) %>%
+  transmute(
+    Fazenda, Tratamento = as.character(tratamento), n,
+    `Densidade (ind./ha)` = f0(dens),
+    `Sobrev. (%)` = f0(sobrev),
+    Riqueza = f0(riq),
+    `Altura (m)` = f1(alt),
+    `AGB (Mg/ha)` = f1(agb_mgha),
+    `C (Mg/ha)` = f1(carb)
+  )
+knitr::kable(tb, align = "llrrrrrrr")
+```
+
+## Posição de cada tratamento e robustez
+
+Como nenhuma variável passou no teste formal, a leitura dos tratamentos é **descritiva**. A Figura 3 mostra a posição de cada tratamento nas sete variáveis do plantio. Na Belo Horizonte, o T6 lidera em biomassa, sobrevivência e altura, enquanto T4 lidera em área seccional e proporção com DAP ≥ 5 cm, e o T1 em riqueza. Na Entre Rios, o controle T7 lidera em biomassa e área seccional, e T4 em altura. A posição média coloca o **T6 em primeiro na Belo Horizonte** e o **T7 (controle) em primeiro na Entre Rios** — resultados em sentidos opostos.
+
+A reamostragem das parcelas confirma a fragilidade dessas posições: com quatro parcelas por tratamento, retirar uma única parcela já troca o primeiro colocado em várias das variáveis. `r texto_firmeza(bh$tratamentos)` (Belo Horizonte). `r texto_firmeza(er$tratamentos)` (Entre Rios).
+
+**Figura 3 –** Posição (mediana) de cada tratamento nas sete variáveis do plantio. Verde mais escuro = melhor posição. A: Belo Horizonte; B: Entre Rios.
+
+```{r fig-posicao}
+#| fig-width: 8.6
+#| fig-height: 9.4
+(grafico_tratamentos(bh) + labs(tag = "A")) /
+  (grafico_tratamentos(er) + labs(tag = "B"))
+```
+
+## Quem carrega o estoque: espécies
+
+Em ambas as fazendas, a biomassa está **concentrada em poucas espécies de crescimento rápido**, e não nas espécies mais numerosas (Figura 4; Tabela 3). Na Belo Horizonte, *Senna multijuga* responde por `r pc(bh$especies$pct_agb[match("Senna multijuga", bh$especies$especie_nome)])` da biomassa, embora a espécie mais abundante seja *Joannesia princeps*. Na Entre Rios, *Senna multijuga* também lidera a biomassa (`r pc(er$especies$pct_agb[match("Senna multijuga", er$especies$especie_nome)])`), enquanto a mais abundante é *Inga laurina*. Esse descolamento entre abundância e biomassa é a base ecológica do experimento: são as espécies APC de recobrimento que puxam o estoque inicial.
+
+**Figura 4 –** Espécies que mais acumulam biomassa em cada fazenda. A: Belo Horizonte; B: Entre Rios.
+
+```{r fig-especies}
+#| fig-width: 8.6
+#| fig-height: 8.8
+(grafico_especies(bh) + labs(tag = "A")) /
+  (grafico_especies(er) + labs(tag = "B"))
+```
+
+**Tabela 3 –** Cinco espécies com maior biomassa acumulada por fazenda.
+
+```{r tab-especies}
+topsp <- function(res, nome) {
+  res$especies %>% arrange(desc(agb_kg)) %>% slice_head(n = 5) %>%
+    transmute(Fazenda = nome, Espécie = especie_nome, `Indivíduos` = n,
+              `% da biomassa` = pc(pct_agb), `Biomassa (kg)` = f0(agb_kg))
+}
+knitr::kable(bind_rows(topsp(bh, "Belo Horizonte"), topsp(er, "Entre Rios")),
+             align = "llrrr")
+```
+
+## Talhões (Belo Horizonte)
+
+As parcelas da Belo Horizonte se distribuem por quatro talhões. Entre os três com pelo menos duas parcelas inventariadas (558, 559 e 560), a **riqueza** difere (Kruskal–Wallis, *p* de Holm = `r f2(bh$talhoes$kw$p_holm[bh$talhoes$kw$variavel=="riqueza"])`), mas a **biomassa não** (*p* de Holm = `r f2(bh$talhoes$kw$p_holm[bh$talhoes$kw$variavel=="agb_kg"])`). A composição de espécies varia entre talhões (PERMANOVA R² = `r pc(bh$talhoes$permanova$r2)`, *p* = `r f2(bh$talhoes$permanova$p)`). Como talhão e tratamento se cruzam, essa variação é um ruído espacial a controlar, não um efeito dos tratamentos (Figura 5).
+
+**Figura 5 –** Parcelas dentro de cada talhão na Belo Horizonte.
+
+```{r fig-talhoes}
+#| fig-width: 8.6
+#| fig-height: 3.4
+grafico_talhoes(bh)
+```
+
+# Discussão
+
+## Síntese dos resultados
+
+Aos cerca de 24 meses, **aumentar a proporção de espécies APC no plantio não se traduziu num ganho detectável de biomassa** em nenhuma das duas fazendas. Na Belo Horizonte há um indício fraco e favorável — o controle (T7) acumulou a menor biomassa mediana e o T6 (60% de APC) a maior —, mas o gradiente não é monotônico e não resiste ao teste estatístico. Na Entre Rios o padrão se inverte: o controle lidera a biomassa. A biomassa total está concentrada em poucas espécies de recobrimento, e a variação entre parcelas do mesmo tratamento é grande o bastante para encobrir qualquer efeito de composição nesta idade.
+
+## Por que o efeito ainda não aparece
+
+Três fatores ajudam a entender a ausência de efeito. Primeiro, a **idade**: aos 24 meses o plantio ainda está na fase inicial, em que o acúmulo de biomassa é dominado por poucos indivíduos grandes de recobrimento; a vantagem teórica de adensar espécies APC tende a se expressar mais tarde, quando a diferença de crescimento se acumula (Brancalion et al., 2019a; Ferez et al., 2015). Segundo, o **poder estatístico**: com quatro parcelas por tratamento e alta variância entre parcelas, a menor diferença de biomassa detectável entre dois tratamentos é da ordem de `r f0(bh$tratamentos$mde$dif_detectavel[1])` kg na Belo Horizonte e `r f0(er$tratamentos$mde$dif_detectavel[1])` kg na Entre Rios por parcela — diferenças grandes frente às medianas observadas. Não rejeitar não é o mesmo que afirmar que os tratamentos são iguais. Terceiro, a **sobrevivência**, sobretudo na Entre Rios (mediana de `r pc(E$sob_med)`), onde o filtro de estabelecimento no solo arenoso e no primeiro ano seco pode pesar mais que a composição do plantio.
+
+## O que o experimento já mostra
+
+Mesmo sem efeito de tratamento, o inventário entrega informação de valor operacional. A lista de **espécies que mais acumulam biomassa** (Tabela 3) orienta diretamente a composição dos próximos plantios voltados ao carbono. E o contraste entre as fazendas quantifica o quanto o **sítio** (clima, solo, preparo) domina o estoque inicial: a mediana de biomassa da Belo Horizonte é cerca de `r f1(B$med_mgha/E$med_mgha)` vezes a da Entre Rios, uma diferença muito maior do que qualquer efeito de composição dentro de cada fazenda.
+
+## Limitações
+
+Os resultados valem para os ~24 meses iniciais e para um sítio por bioma. A equação de Ferez et al. (2015) foi ajustada em plantio de restauração de seis anos em Anhembi (SP); aqui ela é **extrapolada**, inclusive para indivíduos pequenos e para a Entre Rios, onde é a melhor alternativa disponível. A biomassa por hectare usa **900 m² nominais**, enquanto os polígonos desenhados variam de `r f0(B$area_min)` a `r f0(B$area_max)` m² na Belo Horizonte e de `r f0(E$area_min)` a `r f0(E$area_max)` m² na Entre Rios. A incerteza mostrada nas figuras reflete apenas a densidade da madeira, não o erro da equação nem o de medição. Por fim, a ficha da Belo Horizonte não separa a regeneração natural, o que pode superestimar a sobrevivência dessa fazenda.
+
+# Aplicações práticas e impacto no negócio
+
+Para a re.green, três mensagens resultam deste inventário:
+
+- **Carbono inicial.** Na Belo Horizonte, o plantio acumulou em média `r f1(B$med_c)` Mg C ha⁻¹ (≈ `r f1(B$med_co2)` Mg CO₂e ha⁻¹) aos 24 meses, chegando a `r f1(LB$carb)` Mg C ha⁻¹ no melhor tratamento (T6). Na Entre Rios, os valores são bem menores (`r f1(E$med_c)` Mg C ha⁻¹; ≈ `r f1(E$med_co2)` Mg CO₂e ha⁻¹). São números de fase de implantação, que devem crescer com a idade.
+- **Composição do plantio.** Até aqui, adensar espécies APC não pagou em biomassa de forma consistente. A recomendação é **manter o experimento até idades maiores** antes de alterar a composição padrão, e usar desde já a lista de espécies de maior biomassa (Tabela 3) na seleção.
+- **Sítio e sobrevivência.** O ganho de carbono depende primeiro do sítio e da sobrevivência. Na Entre Rios, elevar a sobrevivência (replantio, data de plantio, controle de gramíneas e formigas) tende a render mais do que mexer na proporção de APC.
+
+**Tabela 4 –** Recomendações operacionais com base no inventário aos ~24 meses.
+
+| Tema | Recomendação |
+|---|---|
+| Composição (APC) | Sem ganho consistente de biomassa aos 24 meses; manter o acompanhamento antes de mudar a composição padrão. |
+| Seleção de espécies | Priorizar as espécies de maior biomassa por indivíduo (Tabela 3) nos plantios de carbono. |
+| Entre Rios | Focar em sobrevivência e estabelecimento; é o principal gargalo do estoque. |
+| Métrica | Acompanhar biomassa e carbono (Mg C ha⁻¹) ao longo do tempo; o efeito de composição deve ser reavaliado em idades maiores. |
+
+# Conclusões
+
+- Aos cerca de 24 meses, a proporção de espécies de alto potencial de carbono no plantio **não produziu ganho detectável de biomassa** em nenhuma das duas fazendas; na Belo Horizonte há um indício fraco a favor (T6 > controle), na Entre Rios o controle liderou.
+- Nenhuma das sete variáveis do plantio difere entre tratamentos após a correção de Holm, e a baixa replicação limita o poder do teste; o resultado é "ainda sem efeito detectável", não "sem efeito".
+- A biomassa está concentrada em poucas espécies de recobrimento de crescimento rápido, lideradas por *Senna multijuga* nas duas fazendas.
+- O sítio domina o estoque: a Belo Horizonte acumulou cerca de `r f1(B$med_mgha/E$med_mgha)` vezes mais biomassa por hectare que a Entre Rios.
+- O acompanhamento deve continuar em idades maiores, quando a vantagem teórica do adensamento de espécies APC tem mais chance de se expressar.
+
+# Referências
+
+Brancalion, P.H.S., Campoe, O., Mendes, J.C.T., et al., 2019a. Intensive silviculture enhances biomass accumulation and tree diversity recovery in tropical forest restoration. Ecological Applications 29, e01847.
+
+Brancalion, P.H.S., Meli, P., Tymus, J.R.C., et al., 2019b. What makes ecosystem restoration expensive? A systematic cost assessment of projects in Brazil. Biological Conservation 240, 108274.
+
+Ferez, A.P.C., Campoe, O.C., Mendes, J.C.T., Stape, J.L., 2015. Silvicultural opportunities for increasing carbon stock in restoration of Atlantic forests in Brazil. Forest Ecology and Management 350, 40–45.
+
+Holl, K.D., Aide, T.M., 2011. When and where to actively restore ecosystems? Forest Ecology and Management 261, 1558–1563.
+
+IPCC, 2006. 2006 IPCC Guidelines for National Greenhouse Gas Inventories. Volume 4: Agriculture, Forestry and Other Land Use. IGES, Hayama.
+
+Nave, A.G., Rodrigues, R.R., 2007. Combination of species into filling and diversity groups as forest restoration methodology. In: High Diversity Forest Restoration in Degraded Areas. Nova Science Publishers, New York, pp. 103–126.
+
+Réjou-Méchain, M., Tanguy, A., Piponiot, C., Chave, J., Hérault, B., 2017. BIOMASS: an R package for estimating above-ground biomass and its uncertainty in tropical forests. Methods in Ecology and Evolution 8, 1163–1167.
+
+Zanne, A.E., Lopez-Gonzalez, G., Coomes, D.A., et al., 2009. Global wood density database. Dryad.
+
+---
+
+**Relatório** — Experimento MaxiC: biomassa aérea e desempenho de tratamentos aos ~24 meses, Fazendas Belo Horizonte (BA) e Entre Rios (MA).
+**Produto** — Relatório técnico para a re.green.
+**Autoria** — Gabriela Albuquerque (doutoranda, ESALQ/USP). *[Coordenação e demais autores: a preencher.]*
+**Dados** — Inventário de campo (jun–jul/2026) e GeoPackages das parcelas. Análise reproduzível em `capitulo-03/R/analise_fazendas.R`.

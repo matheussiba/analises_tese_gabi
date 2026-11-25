@@ -1,0 +1,62 @@
+```{r}
+#| include: false
+mde_agb <- at$mde[at$mde$variavel == "agb_plantio_kg", ]
+pt <- res$permanova_tratamento
+ptp <- res$permanova_tratamento_plantio
+d30_n <- nrow(res$d30_suspeito)
+texto_bh_regen <- if (res$tem_regeneracao) {
+  paste0(" Os ", sum(rs$n_regen), " indivíduos de regeneração ficam fora dessa taxa.")
+} else {
+  " A ficha não separa regeneração, então esta taxa pode estar acima da real."
+}
+pasta_saida <- paste0("saida/", COD, "/")
+```
+
+## Tratamentos T1 a T7
+
+Parcelas por tratamento: `r texto_n`. Kruskal–Wallis com Holm, nas sete variáveis do plantio: `r sig_texto(res$kw)`.
+
+O épsilon-quadrado com cerca de 80% de poder é `r fmt_num(res$kw$eps2_80[1], 2)`. O maior efeito observado é `r fmt_num(max(res$kw$efeito), 2)`. Não rejeitar depois de Holm não significa que os tratamentos são iguais.
+
+PERMANOVA de Hellinger entre tratamentos: R² = `r fmt_num(100 * pt$r2, 1)`%, p = `r fmt_p(pt$p)`: `r leitura_perm(pt$p)`. Só o plantio: R² = `r fmt_num(100 * ptp$r2, 1)`%, p = `r fmt_p(ptp$p)`.
+
+```{r}
+#| fig-width: 9.2
+#| fig-height: 3.6
+grafico_tratamentos(res)
+```
+
+## Posição de cada tratamento
+
+Maior mediana em cada variável do plantio. `r texto_lideres(at)`
+
+```{r}
+#| fig-width: 9
+#| fig-height: 4.2
+grafico_ranking_tratamentos(res)
+```
+
+## Quem fica em primeiro, e com que firmeza
+
+`r texto_firmeza(at)`
+
+```{r}
+#| fig-width: 9
+#| fig-height: 3.6
+grafico_prob_melhor(res)
+```
+
+## O que estes números não são
+
+- Sobrevivência é vivos de plantio ÷ 150 mudas. Mediana de `r fmt_pct(median(rs$sobrevivencia))`, de `r fmt_pct(min(rs$sobrevivencia))` a `r fmt_pct(max(rs$sobrevivencia))` entre as parcelas. Não há registro de árvore morta nem de replantio.`r texto_bh_regen`
+- Com poucas parcelas por tratamento, a menor diferença de biomassa detectável entre dois tratamentos é cerca de `r fmt_num(mde_agb$dif_detectavel, 0)` kg, `r fmt_pct(mde_agb$dif_pct_media)` da média por parcela.
+- A equação de Ferez foi ajustada em plantio de restauração de 6 anos em Anhembi (SP). Aqui é extrapolação, inclusive para mudas muito pequenas.
+- Mg/ha usa 900 m² nominais. Os polígonos desenhados vão de `r fmt_num(min(res$parcelas$area_desenhada_m2), 0)` a `r fmt_num(max(res$parcelas$area_desenhada_m2), 0)` m².
+- `r d30_n` indivíduos ficaram sem biomassa por D30 ausente ou implausível (`r paste0(pasta_saida, "d30_suspeito.csv")`). O traço do gráfico é só a incerteza da densidade da madeira.
+
+## Onde estão os arquivos
+
+- `r paste0(pasta_saida, "resumo_parcelas.csv")`: uma linha por parcela, com biomassa, sobrevivência, riqueza e a espécie predominante.
+- `r paste0(pasta_saida, "parcelas_", COD, ".gpkg")`: polígonos do GeoPackage com a biomassa de cada parcela.
+- `r paste0(pasta_saida, "tratamentos_*.csv")`: posição, reamostragem, modelos e diferença detectável.
+- `r paste0("relatorio/apresentacao-fazenda-", COD, ".pptx")`: estes slides.

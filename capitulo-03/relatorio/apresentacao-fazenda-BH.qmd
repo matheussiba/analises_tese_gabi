@@ -1,0 +1,31 @@
+---
+title: "Fazenda Belo Horizonte"
+subtitle: "Inventário e biomassa das parcelas"
+author: "Capítulo 3"
+date: 2026-11-25
+date-format: long
+lang: pt
+format:
+  pptx:
+    slide-level: 2
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| include: false
+# Mesmos slides e mesmos gráficos para as duas fazendas: o corpo está em
+# _slides_*.qmd. Aqui só muda o código da fazenda.
+COD <- "BH"
+raiz <- normalizePath("..")
+source(file.path(raiz, "R/analise_fazendas.R"))
+res <- analisar_fazenda(raiz, COD)
+```
+
+{{< include _slides_parte1.qmd >}}
+
+{{< include _slides_talhoes.qmd >}}
+
+{{< include _slides_parte2.qmd >}}

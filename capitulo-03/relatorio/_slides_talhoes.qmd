@@ -1,0 +1,23 @@
+```{r}
+#| include: false
+tal <- res$talhoes
+n_tal <- rs %>% dplyr::count(talhao)
+fora_tal <- n_tal %>% dplyr::filter(n < 2)
+texto_fora <- if (nrow(fora_tal) == 0) {
+  ""
+} else {
+  paste0(" Fora do teste, por ter uma parcela só: talhão ", lista_pt(fora_tal$talhao), ".")
+}
+```
+
+## Talhões em `r nome`
+
+Kruskal–Wallis nos talhões `r lista_pt(tal$talhoes$talhao)` (`r paste0(tal$talhoes$n, collapse = ", ")` parcelas), quatro testes, correção de Holm: `r sig_texto(tal$kw)`.`r texto_fora`
+
+PERMANOVA de Hellinger entre talhões: R² = `r fmt_num(100 * tal$permanova$r2, 1)`%, p = `r fmt_p(tal$permanova$p)` (`r tal$permanova$n` parcelas). O talhão e o tratamento se cruzam: cada talhão tem vários tratamentos.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 3.6
+grafico_talhoes(res)
+```
