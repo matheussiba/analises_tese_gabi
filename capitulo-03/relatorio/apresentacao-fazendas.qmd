@@ -1,7 +1,7 @@
 ---
 title: "Inventário das fazendas"
 subtitle: "Belo Horizonte e Entre Rios"
-author: "Capítulo 2"
+author: "Capítulo 3"
 date: 2026-11-13
 date-format: long
 lang: pt
@@ -35,43 +35,6 @@ sig <- function(tab) {
 }
 at <- res$tratamentos_er
 rob <- function(v, campo) at$robustez[[campo]][at$robustez$variavel == v]
-
-# Estilo da apresentação anterior: barras por parcela, cor por talhão (BH)
-# ou por tratamento (ER), na ordem das parcelas.
-grafico_biomassa_fazenda <- function(res) {
-  d <- res$resumo %>%
-    dplyr::filter(tem_inventario) %>%
-    dplyr::mutate(rotulo = paste0(tratamento, "\nP", parcela))
-  g <- paleta_grupo(d)
-  d <- g$d
-  subtitulo <- if (g$um_talhao) {
-    "Soma dos fustes com DAP ≥ 5 cm. A cor é o tratamento."
-  } else {
-    "Soma dos fustes com DAP ≥ 5 cm. Nesta fazenda cada tratamento é uma parcela."
-  }
-  p <- ggplot2::ggplot(d, ggplot2::aes(stats::reorder(rotulo, parcela), agb5_kg, fill = grupo)) +
-    ggplot2::geom_col(width = 0.78)
-  if (all(c("agb5_kg_wd_inf", "agb5_kg_wd_sup") %in% names(d))) {
-    p <- p + ggplot2::geom_errorbar(
-      ggplot2::aes(ymin = agb5_kg_wd_inf, ymax = agb5_kg_wd_sup),
-      width = 0.25, linewidth = 0.3, color = "#222222"
-    )
-  }
-  p +
-    ggplot2::scale_fill_manual(values = g$pal, name = g$legenda) +
-    ggplot2::scale_y_continuous(
-      labels = scales::label_number(decimal.mark = ",", big.mark = "."),
-      expand = ggplot2::expansion(mult = c(0, 0.05))
-    ) +
-    ggplot2::labs(
-      title = "Biomassa aérea por parcela",
-      subtitle = subtitulo,
-      x = "Tratamento / parcela",
-      y = "Biomassa aérea (kg)"
-    ) +
-    tema_relatorio() +
-    ggplot2::theme(axis.text.x = ggplot2::element_text(size = 7))
-}
 ```
 
 ## Duas fazendas, o mesmo experimento
@@ -79,6 +42,7 @@ grafico_biomassa_fazenda <- function(res) {
 - Belo Horizonte: `r sum(bh$resumo$tem_inventario)` parcelas com fustes, campanha de `r format(min(bh$resumo$data_coleta), "%d/%m/%Y")` a `r format(max(bh$resumo$data_coleta), "%d/%m/%Y")`. Cada tratamento é uma parcela. O fator com repetição é o talhão.
 - Entre Rios: `r sum(er$resumo$tem_inventario)` parcelas, de `r format(min(er$resumo$data_coleta), "%d/%m/%Y")` a `r format(max(er$resumo$data_coleta), "%d/%m/%Y")`. Tratamentos T1 a T7, quatro parcelas cada.
 - Não há árvore morta nem o total plantado. O que se mostra é o estoque vivo, não a taxa de sobrevivência.
+- Os próximos slides trazem primeiro Belo Horizonte por completo e, em seguida, Entre Rios com os mesmos tipos de gráfico.
 
 ## Como a biomassa foi calculada
 
@@ -89,6 +53,10 @@ $$AGB = 0.0673 \times (\mathrm{WD} \times H \times D^{2})^{0.976}$$
 - Carbono = 0,47 × biomassa. Fração default do IPCC, não medida em laboratório.
 - Mg/ha só entra quando o polígono do GPS é aceitável (400 a 1.600 m², lado máximo 80 m, lado mínimo 8 m).
 
+## Belo Horizonte
+
+Primeira fazenda. Cada tratamento ocorre uma vez. O fator com repetição é o talhão (558, 559 e 560).
+
 ## Belo Horizonte no mapa
 
 ```{r}
@@ -97,14 +65,14 @@ $$AGB = 0.0673 \times (\mathrm{WD} \times H \times D^{2})^{0.976}$$
 grafico_mapa(bh, "Belo Horizonte")
 ```
 
-## Biomassa em Belo Horizonte
+## Biomassa por tratamento em Belo Horizonte
 
-`r fmt_num(sum(inv_bh$agb5_kg) / 1000, 2)` Mg nos fustes com DAP ≥ 5 cm. Mediana de `r fmt_num(median(inv_bh$agb5_kg), 0)` kg por parcela e `r fmt_num(median(inv_bh$agb5_mg_ha, na.rm = TRUE), 1)` Mg/ha onde o GPS serve.
+`r fmt_num(sum(inv_bh$agb5_kg) / 1000, 2)` Mg nos fustes com DAP ≥ 5 cm. Mediana de `r fmt_num(median(inv_bh$agb5_kg), 0)` kg por parcela e `r fmt_num(median(inv_bh$agb5_mg_ha, na.rm = TRUE), 1)` Mg/ha onde o GPS serve. Mesmo estilo de Entre Rios: barras por tratamento, facetas pelo fator com repetição (talhão), tracejado = mediana do talhão, traço = incerteza da densidade da madeira.
 
 ```{r}
 #| fig-width: 9
 #| fig-height: 4.2
-grafico_biomassa_fazenda(bh)
+grafico_biomassa(bh)
 ```
 
 ## Quem carrega o estoque em Belo Horizonte
@@ -129,6 +97,10 @@ PERMANOVA de Hellinger só com retângulo exclusivo: R² = `r fmt_num(100 * res$
 grafico_talhoes(bh)
 ```
 
+## Entre Rios
+
+Segunda fazenda. Mesmos tipos de gráfico: mapa, biomassa por tratamento, espécies e o fator com repetição (aqui, T1–T7). Em seguida, o detalhe da posição e da firmeza dos tratamentos.
+
 ## Entre Rios no mapa
 
 Quinze parcelas com geometria aceita. As outras têm o anel do GPS colapsado: a biomassa em kg fica, o Mg/ha fica em branco.
@@ -139,14 +111,14 @@ Quinze parcelas com geometria aceita. As outras têm o anel do GPS colapsado: a 
 grafico_mapa(er, "Entre Rios")
 ```
 
-## Biomassa em Entre Rios
+## Biomassa por tratamento em Entre Rios
 
-Total com regeneração: `r fmt_num(sum(inv_er$agb5_kg) / 1000, 2)` Mg. Plantio: `r fmt_num(sum(inv_er$agb5_plantio_kg) / 1000, 2)` Mg. A regeneração marcada soma `r fmt_num(sum(inv_er$agb5_regen_kg), 0)` kg. Mediana de `r fmt_num(median(inv_er$agb5_kg), 0)` kg por parcela. A variação entre as quatro parcelas de um mesmo tratamento é tão grande quanto a variação entre tratamentos: T4 vai de `r fmt_num(min(at$parcelas$agb_plantio_kg[at$parcelas$tratamento == "T4"]), 0)` a `r fmt_num(max(at$parcelas$agb_plantio_kg[at$parcelas$tratamento == "T4"]), 0)` kg.
+Total com regeneração: `r fmt_num(sum(inv_er$agb5_kg) / 1000, 2)` Mg. Plantio: `r fmt_num(sum(inv_er$agb5_plantio_kg) / 1000, 2)` Mg. Quatro parcelas por tratamento, lado a lado. Tracejado: mediana do tratamento. Traço nas barras: incerteza da densidade da madeira. A variação dentro de T4 vai de `r fmt_num(min(at$parcelas$agb_plantio_kg[at$parcelas$tratamento == "T4"]), 0)` a `r fmt_num(max(at$parcelas$agb_plantio_kg[at$parcelas$tratamento == "T4"]), 0)` kg.
 
 ```{r}
 #| fig-width: 9
 #| fig-height: 4.2
-grafico_biomassa_fazenda(er)
+grafico_biomassa(er)
 ```
 
 ## Quem carrega o estoque em Entre Rios
@@ -189,18 +161,6 @@ Em altura e na proporção com DAP ≥ 5 cm, T4 continua em primeiro mesmo sem a
 #| fig-width: 9
 #| fig-height: 3.6
 grafico_prob_melhor(at)
-```
-
-## As duas fazendas
-
-Wilcoxon nas parcelas inventariadas. Diferença aqui mistura idade, solo, flora e os cerca de 1.500 km entre os sítios. Não é efeito de T1–T7.
-
-PERMANOVA entre fazendas: R² = `r fmt_num(100 * res$permanova_fazenda$r2, 1)`%, p = `r fmt_p(res$permanova_fazenda$p)`.
-
-```{r}
-#| fig-width: 9.2
-#| fig-height: 3.6
-grafico_fazendas(res)
 ```
 
 ## O que estes números não são

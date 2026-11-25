@@ -984,10 +984,10 @@ grafico_biomassa <- function(res) {
   d <- res$resumo %>% filter(tem_inventario)
   niveis <- unique(d$tratamento)[ordem_tratamento(unique(d$tratamento))]
   d$tratamento <- factor(d$tratamento, levels = niveis)
-  repetido <- any(table(d$tratamento) > 1)
+  repetido_trat <- any(table(as.character(d$tratamento)) > 1)
   tem_ic <- all(c("agb5_kg_wd_inf", "agb5_kg_wd_sup") %in% names(d))
-  if (repetido) {
-    # Tratamentos com repetição: as parcelas do mesmo tratamento ficam lado a lado.
+  if (repetido_trat) {
+    # ER: tratamentos com repetição — parcelas do mesmo tratamento lado a lado.
     d <- d %>%
       arrange(tratamento, parcela) %>%
       mutate(rotulo = factor(paste0("P", parcela), levels = unique(paste0("P", parcela))))
@@ -996,7 +996,7 @@ grafico_biomassa <- function(res) {
       "T1" = "#0072B2", "T2" = "#E69F00", "T3" = "#009E73", "T4" = "#CC79A7",
       "T5" = "#D55E00", "T6" = "#56B4E9", "T7" = "#999933"
     )
-    pal <- pal[intersect(names(pal), niveis)]
+    pal <- pal[intersect(names(pal), as.character(niveis))]
     p <- ggplot(d, aes(rotulo, agb5_kg, fill = tratamento)) +
       geom_col(width = 0.8) +
       geom_hline(data = med, aes(yintercept = mediana), linetype = "dashed", linewidth = 0.4, color = "#222222")
@@ -1009,7 +1009,39 @@ grafico_biomassa <- function(res) {
       scale_y_continuous(labels = label_number(decimal.mark = ",", big.mark = "."), expand = expansion(mult = c(0, 0.05))) +
       labs(
         title = "Biomassa aérea por tratamento",
-        subtitle = "Quatro parcelas por tratamento, lado a lado. Tracejado: mediana do tratamento. Traço: incerteza da densidade da madeira.",
+        subtitle = "Parcelas do mesmo tratamento, lado a lado. Tracejado: mediana do tratamento. Traço: incerteza da densidade da madeira.",
+        x = NULL, y = "Biomassa aérea, DAP ≥ 5 cm (kg)"
+      ) +
+      tema_relatorio() +
+      theme(
+        axis.text.x = element_text(size = 6.5, angle = 90, vjust = 0.5, hjust = 1),
+        strip.placement = "outside",
+        panel.spacing.x = unit(0.25, "lines"),
+        strip.text = element_text(face = "bold", size = 10)
+      )
+  } else if (dplyr::n_distinct(d$talhao) > 1) {
+    # BH: cada tratamento é uma parcela — mesmo estilo visual, facetas pelo talhão.
+    d <- d %>%
+      arrange(talhao, ordem_tratamento(as.character(tratamento))) %>%
+      mutate(
+        talhao_f = factor(talhao),
+        rotulo = factor(as.character(tratamento), levels = as.character(niveis))
+      )
+    med <- d %>% group_by(talhao_f) %>% summarise(mediana = median(agb5_kg), .groups = "drop")
+    pal <- cores_talhao(d$talhao)
+    p <- ggplot(d, aes(rotulo, agb5_kg, fill = talhao_f)) +
+      geom_col(width = 0.8) +
+      geom_hline(data = med, aes(yintercept = mediana), linetype = "dashed", linewidth = 0.4, color = "#222222")
+    if (tem_ic) {
+      p <- p + geom_errorbar(aes(ymin = agb5_kg_wd_inf, ymax = agb5_kg_wd_sup), width = 0.25, linewidth = 0.3, color = "#222222")
+    }
+    p +
+      facet_grid(. ~ talhao_f, scales = "free_x", space = "free_x", switch = "x") +
+      scale_fill_manual(values = pal, guide = "none") +
+      scale_y_continuous(labels = label_number(decimal.mark = ",", big.mark = "."), expand = expansion(mult = c(0, 0.05))) +
+      labs(
+        title = "Biomassa aérea por tratamento",
+        subtitle = "Cada tratamento é uma parcela. Facetas = talhão. Tracejado: mediana do talhão. Traço: incerteza da densidade da madeira.",
         x = NULL, y = "Biomassa aérea, DAP ≥ 5 cm (kg)"
       ) +
       tema_relatorio() +
@@ -1020,7 +1052,6 @@ grafico_biomassa <- function(res) {
         strip.text = element_text(face = "bold", size = 10)
       )
   } else {
-    # Cada código aparece uma vez: a ordem é a do número do tratamento.
     pal <- setNames(hue_pal(l = 55, c = 80)(length(niveis)), niveis)
     p <- ggplot(d, aes(tratamento, agb5_kg, fill = tratamento)) +
       geom_col(width = 0.8)
@@ -1033,7 +1064,7 @@ grafico_biomassa <- function(res) {
       scale_y_continuous(labels = label_number(decimal.mark = ",", big.mark = "."), expand = expansion(mult = c(0, 0.05))) +
       labs(
         title = "Biomassa aérea por tratamento",
-        subtitle = "Cada tratamento é uma parcela, sem repetição. Tracejado: mediana da fazenda. Traço: incerteza da densidade da madeira.",
+        subtitle = "Tracejado: mediana da fazenda. Traço: incerteza da densidade da madeira.",
         x = "Tratamento", y = "Biomassa aérea, DAP ≥ 5 cm (kg)"
       ) +
       tema_relatorio() +

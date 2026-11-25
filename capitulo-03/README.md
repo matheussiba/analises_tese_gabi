@@ -1,4 +1,4 @@
-# Inventário MaxiC — capítulo 2
+# Inventário MaxiC — capítulo 3
 
 Leitura das planilhas quali-quantitativas do experimento MaxiC nas fazendas Belo Horizonte e Entre Rios. O script gera um GeoPackage com os quatro vértices de cada parcela e um PDF, feito no Quarto, com biomassa, composição e testes por parcela, tratamento e talhão.
 
@@ -7,14 +7,14 @@ Leitura das planilhas quali-quantitativas do experimento MaxiC nas fazendas Belo
 É preciso ter R e [Quarto](https://quarto.org/).
 
 ```bash
-cd capitulo-02
+cd capitulo-03
 quarto render relatorio/inventario-maxic-bh.qmd
-quarto render relatorio/apresentacao-maxic.qmd
+quarto render relatorio/apresentacao-fazendas.qmd
 ```
 
-O PDF e o PowerPoint saem em `capitulo-02/relatorio/`. As tabelas e os GeoPackages saem em `capitulo-02/saida/`.
+O PDF e o PowerPoint saem em `capitulo-03/relatorio/`. As tabelas e os GeoPackages saem em `capitulo-03/saida/`.
 
-As planilhas ficam em `capitulo-02/0-raw/` ou, se essa pasta não existir, em `capitulo-02/dados/`.
+As planilhas ficam em `capitulo-03/0-raw/` ou, se essa pasta não existir, em `capitulo-03/dados/`.
 
 Pacotes de R: `dplyr`, `tidyr`, `stringr`, `readxl`, `sf`, `ggplot2`, `patchwork`, `scales`, `BIOMASS`, `vegan`, `readr`.
 
@@ -30,12 +30,12 @@ Pacotes de R: `dplyr`, `tidyr`, `stringr`, `readxl`, `sf`, `ggplot2`, `patchwork
 
 | Caminho | Conteúdo |
 | --- | --- |
-| `capitulo-02/0-raw/` ou `capitulo-02/dados/` | Planilhas de campo |
-| `capitulo-02/R/analise.R` | Leitura, geometria, biomassa e testes |
-| `capitulo-02/relatorio/inventario-maxic-bh.qmd` | Relatório em PDF |
-| `capitulo-02/relatorio/apresentacao-maxic.qmd` | Apresentação em PowerPoint |
-| `capitulo-02/saida/parcelas_BH.gpkg` | Pontos e polígonos de Belo Horizonte |
-| `capitulo-02/saida/parcelas_ER.gpkg` | Pontos e polígonos de Entre Rios |
-| `capitulo-02/saida/resumo_parcelas.csv` | Uma linha por parcela, com biomassa, intervalo da densidade da madeira e, em Entre Rios, plantio e regeneração |
-| `capitulo-02/saida/pendencias_campo.csv` | GPS pendente: retângulo compartilhado, anel colapsado, vértice discrepante |
-| `capitulo-02/saida/permanova.csv` | PERMANOVA principal e a sensibilidade que trata retângulos repetidos como independentes |
+| `capitulo-03/0-raw/` ou `capitulo-03/dados/` | Planilhas de campo |
+| `capitulo-03/R/analise.R` | Leitura, geometria, biomassa e testes |
+| `capitulo-03/relatorio/inventario-maxic-bh.qmd` | Relatório em PDF |
+| `capitulo-03/relatorio/apresentacao-fazendas.qmd` | Apresentação em PowerPoint |
+| `capitulo-03/saida/parcelas_BH.gpkg` | Pontos e polígonos de Belo Horizonte |
+| `capitulo-03/saida/parcelas_ER.gpkg` | Pontos e polígonos de Entre Rios |
+| `capitulo-03/saida/resumo_parcelas.csv` | Uma linha por parcela, com biomassa, intervalo da densidade da madeira e, em Entre Rios, plantio e regeneração |
+| `capitulo-03/saida/pendencias_campo.csv` | GPS pendente: retângulo compartilhado, anel colapsado, vértice discrepante |
+| `capitulo-03/saida/permanova.csv` | PERMANOVA principal e a sensibilidade que trata retângulos repetidos como independentes |

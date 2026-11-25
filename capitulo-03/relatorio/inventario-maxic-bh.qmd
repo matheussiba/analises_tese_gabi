@@ -1,7 +1,7 @@
 ---
 title: "Inventário MaxiC"
 subtitle: "Belo Horizonte e Entre Rios: biomassa, composição e testes"
-author: "Capítulo 2"
+author: "Capítulo 3"
 date: 2026-11-13
 date-format: long
 lang: pt
